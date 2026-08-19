@@ -279,7 +279,7 @@ input[type="color"] { width: 38px; height: 36px; padding: 3px; border: 1px solid
 .markdown-body .page-break-marker { position: relative; height: 1px; margin: 1.8em 0; border-top: 1px dashed var(--article-accent); }
 .markdown-body .page-break-marker::after { content: "強制分頁"; position: absolute; top: 0; left: 50%; padding: .1em .65em; color: var(--article-accent); background: var(--article-bg); font-size: .65em; transform: translate(-50%, -50%); }
 
-.capture-host { position: fixed; z-index: -9999; top: 0; left: 0; pointer-events: none; }
+.capture-host { position: fixed; z-index: -9999; top: 0; left: 0; width: max-content; min-width: 0; overflow: visible; pointer-events: none; }
 .capture-host .export-card { transform: none !important; box-shadow: none !important; }
 .capture-host .page-break-marker { display: none; }
 .capture-page { box-shadow: none !important; }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'markdown-image-studio-v1.0.1-flat';
+const CACHE_NAME = 'markdown-image-studio-v1.0.2-flat';
 const APP_ASSETS = [
   './',
   './index.html',
