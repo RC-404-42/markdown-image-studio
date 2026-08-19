@@ -1,19 +1,16 @@
-const CACHE_NAME = 'markdown-image-studio-v1.0.0';
+const CACHE_NAME = 'markdown-image-studio-v1.0.1-flat';
 const APP_ASSETS = [
   './',
   './index.html',
   './styles.css',
-  './app.js',
+  './highlight.css',
+  './boot.js',
+  './app.bundle.js',
   './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png',
-  './icons/apple-touch-icon.png',
-  './vendor/markdown-it.min.js',
-  './vendor/dompurify.min.js',
-  './vendor/html2canvas.min.js',
-  './vendor/highlight/highlight.min.js',
-  './vendor/highlight/styles/github-dark.min.css'
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png',
+  './apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -49,4 +46,3 @@ self.addEventListener('fetch', (event) => {
     }),
   );
 });
-

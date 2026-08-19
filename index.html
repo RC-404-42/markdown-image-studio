@@ -13,9 +13,9 @@
     <meta name="apple-mobile-web-app-title" content="文章圖片工坊" />
     <title>Markdown 文章圖片工坊</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./icons/icon-192.png" sizes="192x192" />
-    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
-    <link rel="stylesheet" href="./vendor/highlight/styles/github-dark.min.css" />
+    <link rel="icon" href="./icon-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="stylesheet" href="./highlight.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -50,6 +50,7 @@
             <div><h2>Markdown 內容</h2><p>CommonMark ＋ GFM 常用語法</p></div>
             <div class="tiny-actions">
               <button id="importButton" class="text-button" type="button">開啟 .md</button>
+              <button id="loadSampleButton" class="text-button" type="button">載入範例</button>
               <button id="exportMarkdownButton" class="text-button" type="button">備份 .md</button>
               <button id="clearButton" class="text-button danger" type="button">清空</button>
             </div>
@@ -222,10 +223,12 @@
       </section>
     </div>
 
-    <script src="./vendor/markdown-it.min.js"></script>
-    <script src="./vendor/dompurify.min.js"></script>
-    <script src="./vendor/highlight/highlight.min.js"></script>
-    <script src="./vendor/html2canvas.min.js"></script>
-    <script src="./app.js"></script>
+    <div id="bootNotice" class="boot-notice" hidden>
+      <strong>工具沒有完整載入</strong>
+      <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
+    </div>
+
+    <script src="./boot.js"></script>
+    <script src="./app.bundle.js"></script>
   </body>
 </html>
