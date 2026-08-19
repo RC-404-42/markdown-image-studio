@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob:; font-src 'self' data: blob:; script-src 'self'; style-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0e16" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="文章圖片工坊" />
+    <title>Markdown 文章圖片工坊</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon-192.png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./vendor/highlight/styles/github-dark.min.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32"><path d="M6 7h20v18H6zM10 20V12l4 5 4-5v8M21 15l2 2 2-2m-2 2v4" /></svg>
+        </div>
+        <div>
+          <p class="eyebrow">OFFLINE WRITING TOOL</p>
+          <h1>Markdown 文章圖片工坊</h1>
+        </div>
+      </div>
+      <div class="header-meta">
+        <span id="saveState" class="save-state">草稿已儲存在本機</span>
+        <span id="offlineStatus" class="offline-pill"><i></i> 本機運算</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="sidebar">
+        <nav class="tab-list" aria-label="編輯面板">
+          <button class="tab-button active" data-tab="content">內容</button>
+          <button class="tab-button" data-tab="typography">排版</button>
+          <button class="tab-button" data-tab="layout">版面</button>
+          <button class="tab-button" data-tab="colors">色彩</button>
+          <button class="tab-button" data-tab="export">輸出</button>
+        </nav>
+
+        <section class="tab-panel active" data-panel="content">
+          <div class="section-heading">
+            <div><h2>Markdown 內容</h2><p>CommonMark ＋ GFM 常用語法</p></div>
+            <div class="tiny-actions">
+              <button id="importButton" class="text-button" type="button">開啟 .md</button>
+              <button id="exportMarkdownButton" class="text-button" type="button">備份 .md</button>
+              <button id="clearButton" class="text-button danger" type="button">清空</button>
+            </div>
+          </div>
+
+          <div class="editor-toolbar" aria-label="Markdown 快捷工具">
+            <button type="button" data-command="heading" title="標題">H</button>
+            <button type="button" data-command="bold" title="粗體"><strong>B</strong></button>
+            <button type="button" data-command="italic" title="斜體"><em>I</em></button>
+            <button type="button" data-command="strike" title="刪除線"><s>S</s></button>
+            <span></span>
+            <button type="button" data-command="quote" title="引用">❯</button>
+            <button type="button" data-command="bullet" title="項目清單">•≡</button>
+            <button type="button" data-command="ordered" title="編號清單">1.</button>
+            <button type="button" data-command="task" title="待辦清單">☑</button>
+            <span></span>
+            <button type="button" data-command="link" title="連結">↗</button>
+            <button type="button" data-command="image" title="內嵌本機圖片">▧</button>
+            <button type="button" data-command="code" title="程式碼區塊">&lt;/&gt;</button>
+            <button type="button" data-command="table" title="表格">▦</button>
+            <button type="button" data-command="pagebreak" title="強制分頁">⇥</button>
+          </div>
+
+          <textarea id="markdownInput" spellcheck="false" aria-label="Markdown 內容"></textarea>
+          <div class="editor-footer">
+            <span id="documentStats">0 字 · 0 行</span>
+            <span>分頁標記：<code>[[分頁]]</code></span>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="typography">
+          <div class="section-heading"><div><h2>字體與節奏</h2><p>細調每一行文字的呼吸感</p></div></div>
+
+          <div class="control-block">
+            <label for="fontFamily">文章字體</label>
+            <select id="fontFamily" data-setting="fontFamily">
+              <option value='"Microsoft JhengHei", sans-serif'>微軟正黑體</option>
+              <option value='"Noto Sans TC", sans-serif'>Noto Sans TC</option>
+              <option value='"PingFang TC", sans-serif'>蘋方－繁</option>
+              <option value='Arial, sans-serif'>Arial</option>
+              <option value='Georgia, serif'>Georgia</option>
+              <option value='"Times New Roman", serif'>Times New Roman</option>
+              <option value='serif'>系統襯線體</option>
+              <option value='sans-serif'>系統無襯線體</option>
+            </select>
+            <div class="inline-actions">
+              <button id="customFontButton" class="secondary-small" type="button">載入本機字體</button>
+              <span id="customFontLabel" class="hint">TTF / OTF / WOFF</span>
+            </div>
+          </div>
+
+          <div class="control-block">
+            <label for="codeFont">程式碼字體</label>
+            <select id="codeFont" data-setting="codeFont">
+              <option value='"Cascadia Code", "Microsoft JhengHei", monospace'>Cascadia Code</option>
+              <option value='Consolas, "Microsoft JhengHei", monospace'>Consolas</option>
+              <option value='"Courier New", monospace'>Courier New</option>
+              <option value='monospace'>系統等寬字體</option>
+            </select>
+          </div>
+
+          <div class="slider-control"><label>基礎字級 <output data-output="fontSize"></output></label><div><input type="range" min="12" max="48" step="1" data-setting="fontSize" /><input type="number" min="12" max="48" step="1" data-setting="fontSize" /></div></div>
+          <div class="slider-control"><label>行距 <output data-output="lineHeight"></output></label><div><input type="range" min="1.1" max="2.6" step="0.05" data-setting="lineHeight" /><input type="number" min="1.1" max="2.6" step="0.05" data-setting="lineHeight" /></div></div>
+          <div class="slider-control"><label>字距 <output data-output="letterSpacing"></output></label><div><input type="range" min="-2" max="8" step="0.1" data-setting="letterSpacing" /><input type="number" min="-2" max="8" step="0.1" data-setting="letterSpacing" /></div></div>
+          <div class="slider-control"><label>段落間距 <output data-output="paragraphSpacing"></output></label><div><input type="range" min="0" max="64" step="1" data-setting="paragraphSpacing" /><input type="number" min="0" max="64" step="1" data-setting="paragraphSpacing" /></div></div>
+          <div class="slider-control"><label>標題比例 <output data-output="headingScale"></output></label><div><input type="range" min="0.8" max="1.5" step="0.05" data-setting="headingScale" /><input type="number" min="0.8" max="1.5" step="0.05" data-setting="headingScale" /></div></div>
+          <div class="slider-control"><label>首行縮排 <output data-output="firstLineIndent"></output></label><div><input type="range" min="0" max="4" step="0.25" data-setting="firstLineIndent" /><input type="number" min="0" max="4" step="0.25" data-setting="firstLineIndent" /></div></div>
+
+          <div class="two-column-controls">
+            <div class="control-block"><label for="textAlign">對齊方式</label><select id="textAlign" data-setting="textAlign"><option value="left">靠左</option><option value="justify">左右對齊</option><option value="center">置中</option></select></div>
+            <label class="toggle-control"><span><b>程式碼自動換行</b><small>避免超出圖片邊界</small></span><input type="checkbox" data-setting="codeWrap" /></label>
+          </div>
+          <label class="toggle-control"><span><b>單一換行直接斷行</b><small>關閉時遵循標準 Markdown 段落規則</small></span><input type="checkbox" data-setting="softBreaks" /></label>
+        </section>
+
+        <section class="tab-panel" data-panel="layout">
+          <div class="section-heading"><div><h2>畫布與留白</h2><p>輸出尺寸以 CSS 像素計算</p></div></div>
+          <div class="slider-control"><label>畫布寬度 <output data-output="width"></output></label><div><input type="range" min="400" max="2400" step="10" data-setting="width" /><input type="number" min="400" max="2400" step="10" data-setting="width" /></div></div>
+          <div class="slider-control"><label>圓角 <output data-output="radius"></output></label><div><input type="range" min="0" max="80" step="1" data-setting="radius" /><input type="number" min="0" max="80" step="1" data-setting="radius" /></div></div>
+          <div class="padding-heading"><div><h3>邊緣留白</h3><p>可分別調整四個方向</p></div><label class="lock-toggle"><input id="paddingLinked" type="checkbox" data-setting="paddingLinked" /><span>同步</span></label></div>
+          <div class="padding-grid">
+            <label>上<input type="number" min="0" max="400" step="1" data-setting="paddingTop" /></label>
+            <label>右<input type="number" min="0" max="400" step="1" data-setting="paddingRight" /></label>
+            <label>下<input type="number" min="0" max="400" step="1" data-setting="paddingBottom" /></label>
+            <label>左<input type="number" min="0" max="400" step="1" data-setting="paddingLeft" /></label>
+          </div>
+          <div class="slider-control"><label>預覽縮放 <output data-output="previewZoom"></output></label><div><input type="range" min="25" max="120" step="5" data-setting="previewZoom" /><input type="number" min="25" max="120" step="5" data-setting="previewZoom" /></div></div>
+          <button id="resetLayoutButton" class="wide-secondary" type="button">恢復排版預設值</button>
+        </section>
+
+        <section class="tab-panel" data-panel="colors">
+          <div class="section-heading"><div><h2>文章配色</h2><p>只影響輸出圖片，不改變工具介面</p></div></div>
+          <div class="preset-grid">
+            <button type="button" data-preset="paper"><i class="preset-paper"></i>紙張</button>
+            <button type="button" data-preset="midnight"><i class="preset-midnight"></i>深夜</button>
+            <button type="button" data-preset="sepia"><i class="preset-sepia"></i>復古</button>
+            <button type="button" data-preset="ink"><i class="preset-ink"></i>冷墨</button>
+          </div>
+          <div class="color-grid">
+            <label>背景色<span><input type="color" data-setting="backgroundColor" /><input type="text" data-setting="backgroundColor" /></span></label>
+            <label>文字色<span><input type="color" data-setting="textColor" /><input type="text" data-setting="textColor" /></span></label>
+            <label>強調色<span><input type="color" data-setting="accentColor" /><input type="text" data-setting="accentColor" /></span></label>
+            <label>次要文字<span><input type="color" data-setting="mutedColor" /><input type="text" data-setting="mutedColor" /></span></label>
+            <label>框線色<span><input type="color" data-setting="borderColor" /><input type="text" data-setting="borderColor" /></span></label>
+            <label>引用背景<span><input type="color" data-setting="quoteBackground" /><input type="text" data-setting="quoteBackground" /></span></label>
+            <label>程式碼背景<span><input type="color" data-setting="codeBackground" /><input type="text" data-setting="codeBackground" /></span></label>
+            <label>程式碼文字<span><input type="color" data-setting="codeText" /><input type="text" data-setting="codeText" /></span></label>
+          </div>
+        </section>
+
+        <section class="tab-panel" data-panel="export">
+          <div class="section-heading"><div><h2>圖片輸出</h2><p>長圖過高時會自動安全分頁</p></div></div>
+          <div class="control-block"><label for="fileName">檔案名稱</label><input id="fileName" type="text" data-setting="fileName" /></div>
+          <div class="two-column-controls">
+            <div class="control-block"><label for="exportMode">輸出模式</label><select id="exportMode" data-setting="exportMode"><option value="long">單張長圖</option><option value="pages">固定高度分頁</option></select></div>
+            <div class="control-block"><label for="format">圖片格式</label><select id="format" data-setting="format"><option value="png">PNG</option><option value="jpg">JPG</option><option value="webp">WebP</option></select></div>
+          </div>
+          <div id="pageHeightControl" class="slider-control"><label>每頁高度 <output data-output="pageHeight"></output></label><div><input type="range" min="600" max="5000" step="20" data-setting="pageHeight" /><input type="number" min="600" max="5000" step="20" data-setting="pageHeight" /></div></div>
+          <div class="slider-control"><label>輸出倍率 <output data-output="scale"></output></label><div><input type="range" min="1" max="3" step="1" data-setting="scale" /><input type="number" min="1" max="3" step="1" data-setting="scale" /></div></div>
+          <div id="qualityControl" class="slider-control"><label>圖片品質 <output data-output="quality"></output></label><div><input type="range" min="60" max="100" step="1" data-setting="quality" /><input type="number" min="60" max="100" step="1" data-setting="quality" /></div></div>
+          <div class="export-note"><strong>iPhone 儲存方式</strong><p>輸出完成後點「分享／儲存」，即可使用 iOS 分享選單儲存到照片、檔案或其他 App。所有內容只在這台裝置上處理。</p></div>
+        </section>
+
+        <input id="markdownFileInput" type="file" accept=".md,.markdown,text/markdown,text/plain" hidden />
+        <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden />
+        <input id="fontFileInput" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden />
+      </aside>
+
+      <section class="preview-pane">
+        <div class="preview-toolbar">
+          <div>
+            <h2>即時預覽</h2>
+            <p id="renderInfo">正在計算版面…</p>
+          </div>
+          <div class="preview-actions">
+            <button id="openOutputButton" class="secondary-button" type="button" hidden>分享／儲存</button>
+            <button id="exportButton" class="primary-button" type="button"><span class="button-icon">⇩</span><span class="button-label">輸出圖片</span></button>
+          </div>
+        </div>
+        <div id="previewViewport" class="preview-viewport">
+          <div id="previewScaleBox" class="preview-scale-box">
+            <article id="exportCard" class="export-card">
+              <div id="markdownPreview" class="markdown-body"></div>
+            </article>
+          </div>
+        </div>
+        <div class="preview-statusbar">
+          <span id="exportEstimate">—</span>
+          <span id="statusMessage">準備好了。</span>
+        </div>
+      </section>
+    </main>
+
+    <div id="captureHost" class="capture-host" aria-hidden="true"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div id="resultSheet" class="result-sheet" hidden>
+      <button class="sheet-backdrop" type="button" data-close-results aria-label="關閉"></button>
+      <section class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+        <header class="sheet-header">
+          <div><p>EXPORT READY</p><h2 id="resultTitle">圖片已經做好了</h2></div>
+          <button class="sheet-close" type="button" data-close-results aria-label="關閉">×</button>
+        </header>
+        <p class="sheet-tip">優先使用「分享全部」；若瀏覽器不支援檔案分享，也能逐張下載或長按預覽圖片儲存。</p>
+        <div id="resultGallery" class="result-gallery"></div>
+        <div class="sheet-actions">
+          <button id="shareAllButton" class="primary-button" type="button">分享全部圖片</button>
+          <button class="secondary-button" type="button" data-close-results>返回編輯</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="./vendor/markdown-it.min.js"></script>
+    <script src="./vendor/dompurify.min.js"></script>
+    <script src="./vendor/highlight/highlight.min.js"></script>
+    <script src="./vendor/html2canvas.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

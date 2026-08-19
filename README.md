@@ -1,2 +1,23 @@
-# markdown-image-studio
-vibe tool test
+# Markdown 文章圖片工坊 — iPhone PWA
+
+可安裝到 iPhone 主畫面的離線 Markdown 文章圖片工具。所有文章、圖片、字體與輸出都只在瀏覽器內處理，不會傳送到伺服器。
+
+## 功能
+
+- CommonMark 與常用 GFM 排版、表格、待辦清單及程式碼上色
+- 字體／本機字體、字級、行距、字距、段距、縮排與四邊留白
+- PNG、JPG、WebP；長圖、固定高度及手動分頁
+- iOS 系統分享選單、逐張下載及 Markdown 原稿備份
+- PWA 主畫面安裝與 Service Worker 離線快取
+- 手機畫布記憶體保護，過長內容自動安全分張
+
+## 部署
+
+請閱讀 [`docs/GITHUB-PAGES-教學.md`](./docs/GITHUB-PAGES-教學.md)。不要把 ZIP 本身上傳成網站；請先解壓縮，再上傳裡面的所有檔案與資料夾。
+
+## 隱私
+
+GitHub Pages 只提供這套工具的靜態程式碼。文章草稿儲存在裝置的瀏覽器儲存空間；遠端圖片預設不載入，必須使用工具列按鈕選擇本機圖片。
+
+重要原稿仍建議定期使用「備份 .md」保存到 iCloud Drive 或其他位置，不要把瀏覽器草稿當成唯一備份。
+

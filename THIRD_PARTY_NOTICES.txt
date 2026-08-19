@@ -1,0 +1,27 @@
+Markdown 文章圖片工坊 — Third-party notices
+================================================
+
+This application bundles the following open-source software. Full license texts
+are available in each dependency's distributed package and source repository.
+
+Electron
+Copyright (c) Electron contributors
+MIT License — https://github.com/electron/electron
+
+markdown-it
+Copyright (c) 2014 Vitaly Puzrin, Alex Kocharin
+MIT License — https://github.com/markdown-it/markdown-it
+
+DOMPurify
+Copyright (c) 2015 Mario Heiderich
+Apache License 2.0 or Mozilla Public License 2.0
+https://github.com/cure53/DOMPurify
+
+html2canvas
+Copyright (c) Niklas von Hertzen
+MIT License — https://github.com/niklasvh/html2canvas
+
+highlight.js
+Copyright (c) 2006 Ivan Sagalaev
+BSD 3-Clause License — https://github.com/highlightjs/highlight.js
+

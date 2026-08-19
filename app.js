@@ -1,0 +1,1009 @@
+/* global markdownit, DOMPurify, hljs, html2canvas */
+
+const SAMPLE_MARKDOWN = `# 把文字變成一張好看的圖
+
+這是一個真正支援 **Markdown** 的離線文章圖片工具。你可以使用 *斜體*、~~刪除線~~、\`行內程式碼\`，也能微調字體、行距、字距與四邊留白。
+
+## GitHub Flavored Markdown
+
+- 支援巢狀項目清單
+  - 第二層內容也會正確縮排
+  - 長句會依照畫布寬度自然換行，不再被裁掉
+- [x] 已完成的待辦事項
+- [ ] 還沒完成的待辦事項
+
+> 文章不是一堆被硬塞進 Canvas 的字；排版需要節奏、留白，以及讓眼睛喘氣的地方。
+
+### 表格
+
+| 功能 | 離線 | 可調整 |
+| :--- | :---: | ---: |
+| Markdown 渲染 | ✓ | 語法完整 |
+| 圖片輸出 | ✓ | PNG / JPG / WebP |
+| 長文分頁 | ✓ | 高度自訂 |
+
+### 程式碼區塊
+
+\`\`\`javascript
+const article = render(markdown);
+await exportAsImage(article, { scale: 2 });
+\`\`\`
+
+---
+
+輸出時不會修改原稿，也不會把內容傳到任何伺服器。`;
+
+const DEFAULT_SETTINGS = Object.freeze({
+  fontFamily: '"Microsoft JhengHei", sans-serif',
+  codeFont: '"Cascadia Code", "Microsoft JhengHei", monospace',
+  fontSize: 20,
+  lineHeight: 1.75,
+  letterSpacing: 0,
+  paragraphSpacing: 16,
+  headingScale: 1,
+  firstLineIndent: 0,
+  textAlign: 'left',
+  codeWrap: true,
+  softBreaks: false,
+  width: 900,
+  radius: 20,
+  paddingLinked: true,
+  paddingTop: 72,
+  paddingRight: 76,
+  paddingBottom: 72,
+  paddingLeft: 76,
+  previewZoom: 70,
+  backgroundColor: '#fffdf8',
+  textColor: '#302d2a',
+  accentColor: '#715ee0',
+  mutedColor: '#6f6b68',
+  borderColor: '#dfdcd5',
+  quoteBackground: '#f5f1e9',
+  codeBackground: '#171923',
+  codeText: '#e8e8ef',
+  fileName: 'markdown-article',
+  exportMode: 'long',
+  pageHeight: 1600,
+  format: 'png',
+  scale: 2,
+  quality: 94,
+});
+
+const NUMERIC_SETTINGS = new Set([
+  'fontSize', 'lineHeight', 'letterSpacing', 'paragraphSpacing', 'headingScale',
+  'firstLineIndent', 'width', 'radius', 'paddingTop', 'paddingRight',
+  'paddingBottom', 'paddingLeft', 'previewZoom', 'pageHeight', 'scale', 'quality',
+]);
+
+const COLOR_SETTINGS = new Set([
+  'backgroundColor', 'textColor', 'accentColor', 'mutedColor', 'borderColor',
+  'quoteBackground', 'codeBackground', 'codeText',
+]);
+
+const COLOR_PRESETS = {
+  paper: {
+    backgroundColor: '#fffdf8', textColor: '#302d2a', accentColor: '#715ee0',
+    mutedColor: '#6f6b68', borderColor: '#dfdcd5', quoteBackground: '#f5f1e9',
+    codeBackground: '#171923', codeText: '#e8e8ef',
+  },
+  midnight: {
+    backgroundColor: '#12141d', textColor: '#ececf4', accentColor: '#a895ff',
+    mutedColor: '#a4a8b6', borderColor: '#343846', quoteBackground: '#1b1e2a',
+    codeBackground: '#090b11', codeText: '#edf0f5',
+  },
+  sepia: {
+    backgroundColor: '#f1e5cf', textColor: '#49382a', accentColor: '#9b573e',
+    mutedColor: '#796653', borderColor: '#cdbda4', quoteBackground: '#e8d8bd',
+    codeBackground: '#392f2a', codeText: '#f4eadc',
+  },
+  ink: {
+    backgroundColor: '#f4f6f8', textColor: '#15181d', accentColor: '#2764d8',
+    mutedColor: '#626a76', borderColor: '#d4d9e0', quoteBackground: '#e9edf3',
+    codeBackground: '#101722', codeText: '#e8edf5',
+  },
+};
+
+const elements = {
+  markdownInput: document.querySelector('#markdownInput'),
+  markdownPreview: document.querySelector('#markdownPreview'),
+  exportCard: document.querySelector('#exportCard'),
+  previewScaleBox: document.querySelector('#previewScaleBox'),
+  renderInfo: document.querySelector('#renderInfo'),
+  exportEstimate: document.querySelector('#exportEstimate'),
+  documentStats: document.querySelector('#documentStats'),
+  statusMessage: document.querySelector('#statusMessage'),
+  exportButton: document.querySelector('#exportButton'),
+  openOutputButton: document.querySelector('#openOutputButton'),
+  exportMarkdownButton: document.querySelector('#exportMarkdownButton'),
+  pageHeightControl: document.querySelector('#pageHeightControl'),
+  qualityControl: document.querySelector('#qualityControl'),
+  captureHost: document.querySelector('#captureHost'),
+  markdownFileInput: document.querySelector('#markdownFileInput'),
+  imageFileInput: document.querySelector('#imageFileInput'),
+  fontFileInput: document.querySelector('#fontFileInput'),
+  customFontLabel: document.querySelector('#customFontLabel'),
+  toast: document.querySelector('#toast'),
+  saveState: document.querySelector('#saveState'),
+  offlineStatus: document.querySelector('#offlineStatus'),
+  resultSheet: document.querySelector('#resultSheet'),
+  resultGallery: document.querySelector('#resultGallery'),
+  shareAllButton: document.querySelector('#shareAllButton'),
+};
+
+function loadStoredState() {
+  try {
+    const storedValue = localStorage.getItem('markdown-image-settings');
+    const storedSettings = JSON.parse(storedValue || '{}');
+    const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
+    if (!storedValue && window.matchMedia('(max-width: 900px)').matches) settings.previewZoom = 40;
+    if (String(settings.fontFamily).includes('LocalFont_')) settings.fontFamily = DEFAULT_SETTINGS.fontFamily;
+    return {
+      text: localStorage.getItem('markdown-image-draft') || SAMPLE_MARKDOWN,
+      settings,
+    };
+  } catch {
+    return { text: SAMPLE_MARKDOWN, settings: { ...DEFAULT_SETTINGS } };
+  }
+}
+
+const storedState = loadStoredState();
+const state = {
+  text: storedState.text,
+  settings: storedState.settings,
+  generatedFiles: [],
+  generatedPreviews: [],
+  resultUrls: [],
+  exporting: false,
+  customFontDataUrl: null,
+  customFontFamily: null,
+};
+
+const md = markdownit({
+  html: false,
+  linkify: true,
+  typographer: true,
+  breaks: state.settings.softBreaks,
+  highlight(code, language) {
+    try {
+      if (language && hljs.getLanguage(language)) {
+        return hljs.highlight(code, { language, ignoreIllegals: true }).value;
+      }
+      return hljs.highlightAuto(code).value;
+    } catch {
+      return md.utils.escapeHtml(code);
+    }
+  },
+});
+
+md.renderer.rules.link_open = (tokens, index, options, env, self) => {
+  tokens[index].attrSet('rel', 'noreferrer');
+  return self.renderToken(tokens, index, options);
+};
+
+md.renderer.rules.image = (tokens, index, options, env, self) => {
+  const token = tokens[index];
+  const source = token.attrGet('src') || '';
+  const alt = token.content || '圖片';
+  if (!/^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);/i.test(source) && !source.startsWith('blob:')) {
+    return `<span class="image-placeholder">🖼 ${md.utils.escapeHtml(alt)}（外部圖片未載入，請用工具列的圖片按鈕內嵌）</span>`;
+  }
+  return self.renderToken(tokens, index, options);
+};
+
+let renderTimer;
+let persistTimer;
+let toastTimer;
+
+function showToast(message, type = '') {
+  clearTimeout(toastTimer);
+  elements.toast.textContent = message;
+  elements.toast.className = `toast visible ${type}`.trim();
+  toastTimer = setTimeout(() => { elements.toast.className = 'toast'; }, 3400);
+}
+
+function setStatus(message, type = '') {
+  elements.statusMessage.textContent = message;
+  elements.statusMessage.className = type;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function hexToRgb(hex) {
+  const value = String(hex).replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(value)) return { r: 0, g: 0, b: 0 };
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16),
+  };
+}
+
+function mixColors(foreground, background, foregroundWeight) {
+  const fg = hexToRgb(foreground);
+  const bg = hexToRgb(background);
+  const weight = clamp(foregroundWeight, 0, 1);
+  const values = ['r', 'g', 'b'].map((key) => Math.round(fg[key] * weight + bg[key] * (1 - weight)));
+  return `#${values.map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function formatOutput(setting, value) {
+  const suffixes = {
+    fontSize: ' px', letterSpacing: ' px', paragraphSpacing: ' px', width: ' px',
+    radius: ' px', pageHeight: ' px', previewZoom: '%', quality: '%',
+    lineHeight: '×', headingScale: '×', firstLineIndent: ' em', scale: '×',
+  };
+  return `${value}${suffixes[setting] || ''}`;
+}
+
+function syncControls() {
+  document.querySelectorAll('[data-setting]').forEach((input) => {
+    const setting = input.dataset.setting;
+    const value = state.settings[setting];
+    if (input.type === 'checkbox') input.checked = Boolean(value);
+    else input.value = value;
+  });
+
+  document.querySelectorAll('[data-output]').forEach((output) => {
+    const setting = output.dataset.output;
+    output.textContent = formatOutput(setting, state.settings[setting]);
+  });
+
+  elements.pageHeightControl.hidden = state.settings.exportMode !== 'pages';
+  elements.qualityControl.hidden = state.settings.format === 'png';
+}
+
+function applySettings() {
+  const settings = state.settings;
+  const card = elements.exportCard;
+  card.style.width = `${settings.width}px`;
+  card.style.padding = `${settings.paddingTop}px ${settings.paddingRight}px ${settings.paddingBottom}px ${settings.paddingLeft}px`;
+  card.style.borderRadius = `${settings.radius}px`;
+  card.style.backgroundColor = settings.backgroundColor;
+  card.style.color = settings.textColor;
+  card.style.setProperty('--article-bg', settings.backgroundColor);
+  card.style.setProperty('--article-text', settings.textColor);
+  card.style.setProperty('--article-accent', settings.accentColor);
+  card.style.setProperty('--article-muted', settings.mutedColor);
+  card.style.setProperty('--article-border', settings.borderColor);
+  card.style.setProperty('--article-quote-bg', settings.quoteBackground);
+  card.style.setProperty('--article-code-bg', settings.codeBackground);
+  card.style.setProperty('--article-code-text', settings.codeText);
+  card.style.setProperty('--article-code-border', mixColors(settings.codeText, settings.codeBackground, .12));
+  card.style.setProperty('--article-inline-code-bg', mixColors(settings.accentColor, settings.backgroundColor, .10));
+  card.style.setProperty('--article-table-head', mixColors(settings.accentColor, settings.backgroundColor, .08));
+  card.style.setProperty('--article-row-alt', mixColors(settings.mutedColor, settings.backgroundColor, .04));
+  card.style.setProperty('--article-muted-bg', mixColors(settings.mutedColor, settings.backgroundColor, .05));
+  card.style.setProperty('--article-font', settings.fontFamily);
+  card.style.setProperty('--article-code-font', settings.codeFont);
+  card.style.setProperty('--article-size', `${settings.fontSize}px`);
+  card.style.setProperty('--article-line-height', settings.lineHeight);
+  card.style.setProperty('--article-letter-spacing', `${settings.letterSpacing}px`);
+  card.style.setProperty('--article-paragraph-space', `${settings.paragraphSpacing}px`);
+  card.style.setProperty('--article-indent', `${settings.firstLineIndent}em`);
+  card.style.setProperty('--article-align', settings.textAlign);
+  card.style.setProperty('--article-radius', `${settings.radius}px`);
+  card.style.setProperty('--article-code-wrap', settings.codeWrap ? 'pre-wrap' : 'pre');
+  card.style.setProperty('--article-code-overflow', settings.codeWrap ? 'anywhere' : 'normal');
+  card.style.setProperty('--h1-size', `${settings.fontSize * 2.05 * settings.headingScale}px`);
+  card.style.setProperty('--h2-size', `${settings.fontSize * 1.62 * settings.headingScale}px`);
+  card.style.setProperty('--h3-size', `${settings.fontSize * 1.32 * settings.headingScale}px`);
+  card.style.setProperty('--h4-size', `${settings.fontSize * 1.08 * settings.headingScale}px`);
+
+  syncControls();
+  requestAnimationFrame(updatePreviewGeometry);
+}
+
+function enhanceTaskLists(root) {
+  root.querySelectorAll('li').forEach((item) => {
+    const container = item.firstElementChild?.tagName === 'P' ? item.firstElementChild : item;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const firstText = walker.nextNode();
+    if (!firstText) return;
+    const match = firstText.nodeValue.match(/^\s*\[([ xX])\]\s+/);
+    if (!match) return;
+    firstText.nodeValue = firstText.nodeValue.slice(match[0].length);
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.disabled = true;
+    checkbox.checked = match[1].toLowerCase() === 'x';
+    container.insertBefore(checkbox, container.firstChild);
+    item.classList.add('task-list-item');
+  });
+}
+
+function enhancePageBreaks(root) {
+  root.querySelectorAll('p').forEach((paragraph) => {
+    if (paragraph.textContent.trim() !== '[[分頁]]') return;
+    const marker = document.createElement('div');
+    marker.className = 'page-break-marker';
+    paragraph.replaceWith(marker);
+  });
+}
+
+function renderMarkdown() {
+  md.set({ breaks: state.settings.softBreaks });
+  const rendered = md.render(state.text);
+  elements.markdownPreview.innerHTML = DOMPurify.sanitize(rendered, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'style'],
+  });
+  enhanceTaskLists(elements.markdownPreview);
+  enhancePageBreaks(elements.markdownPreview);
+
+  const characterCount = state.text.replace(/\s/g, '').length;
+  const lineCount = state.text ? state.text.split('\n').length : 0;
+  elements.documentStats.textContent = `${characterCount.toLocaleString()} 字 · ${lineCount.toLocaleString()} 行`;
+  requestAnimationFrame(updatePreviewGeometry);
+}
+
+function updatePreviewGeometry() {
+  const zoom = state.settings.previewZoom / 100;
+  const width = state.settings.width;
+  const height = Math.ceil(elements.exportCard.scrollHeight);
+  elements.exportCard.style.transform = `scale(${zoom})`;
+  elements.previewScaleBox.style.width = `${Math.ceil(width * zoom)}px`;
+  elements.previewScaleBox.style.height = `${Math.ceil(height * zoom)}px`;
+
+  const physicalWidth = Math.round(width * state.settings.scale);
+  const physicalHeight = Math.round(height * state.settings.scale);
+  const effectivePageHeight = Math.min(state.settings.pageHeight, getSafeCssHeight());
+  const pageEstimate = state.settings.exportMode === 'pages'
+    ? Math.max(1, Math.ceil(height / effectivePageHeight))
+    : 1;
+  elements.renderInfo.textContent = `${width} × ${height} px · 預覽 ${state.settings.previewZoom}%`;
+  elements.exportEstimate.textContent = state.settings.exportMode === 'pages'
+    ? `預估 ${pageEstimate} 張 · 每張最高 ${physicalWidth} × ${effectivePageHeight * state.settings.scale} px`
+    : `輸出約 ${physicalWidth} × ${physicalHeight} px${height > getSafeCssHeight() ? ' · 過高時自動分張' : ''}`;
+}
+
+function persistState() {
+  clearTimeout(persistTimer);
+  elements.saveState.textContent = '正在儲存草稿…';
+  persistTimer = setTimeout(() => {
+    try {
+      localStorage.setItem('markdown-image-settings', JSON.stringify(state.settings));
+      if (state.text.length < 3_000_000) {
+        localStorage.setItem('markdown-image-draft', state.text);
+        elements.saveState.textContent = '草稿已儲存在本機';
+      } else {
+        elements.saveState.textContent = '草稿過大，僅儲存設定';
+      }
+    } catch {
+      elements.saveState.textContent = '草稿太大，無法自動儲存';
+    }
+  }, 450);
+}
+
+function queueRender(reparse = true) {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => {
+    if (reparse) renderMarkdown();
+    else applySettings();
+  }, 55);
+  persistState();
+}
+
+function normalizeInputValue(input) {
+  const setting = input.dataset.setting;
+  if (input.type === 'checkbox') return input.checked;
+  if (NUMERIC_SETTINGS.has(setting)) {
+    let value = Number(input.value);
+    if (!Number.isFinite(value)) value = DEFAULT_SETTINGS[setting];
+    if (input.min !== '') value = Math.max(Number(input.min), value);
+    if (input.max !== '') value = Math.min(Number(input.max), value);
+    return value;
+  }
+  return input.value;
+}
+
+function handleSettingInput(event) {
+  const input = event.target.closest('[data-setting]');
+  if (!input) return;
+  const setting = input.dataset.setting;
+  const value = normalizeInputValue(input);
+
+  if (COLOR_SETTINGS.has(setting) && !/^#[0-9a-f]{6}$/i.test(value)) return;
+  state.settings[setting] = value;
+
+  if (setting.startsWith('padding') && setting !== 'paddingLinked' && state.settings.paddingLinked) {
+    ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].forEach((key) => {
+      state.settings[key] = value;
+    });
+  }
+
+  syncControls();
+  queueRender(setting === 'softBreaks');
+}
+
+function insertAround(prefix, suffix, placeholder) {
+  const textarea = elements.markdownInput;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = textarea.value.slice(start, end) || placeholder;
+  textarea.setRangeText(`${prefix}${selected}${suffix}`, start, end, 'end');
+  textarea.focus();
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function prefixSelectedLines(prefix) {
+  const textarea = elements.markdownInput;
+  const start = textarea.value.lastIndexOf('\n', textarea.selectionStart - 1) + 1;
+  const nextBreak = textarea.value.indexOf('\n', textarea.selectionEnd);
+  const end = nextBreak === -1 ? textarea.value.length : nextBreak;
+  const block = textarea.value.slice(start, end);
+  const replaced = block.split('\n').map((line, index) => typeof prefix === 'function' ? prefix(line, index) : `${prefix}${line}`).join('\n');
+  textarea.setRangeText(replaced, start, end, 'select');
+  textarea.focus();
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function insertBlock(content) {
+  const textarea = elements.markdownInput;
+  const start = textarea.selectionStart;
+  const leading = start > 0 && !textarea.value.slice(0, start).endsWith('\n\n') ? '\n\n' : '';
+  textarea.setRangeText(`${leading}${content}\n\n`, start, textarea.selectionEnd, 'end');
+  textarea.focus();
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('讀取檔案失敗'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function sanitizeFileName(name) {
+  return String(name || 'markdown-article')
+    .replace(/\.(png|jpe?g|webp|md)$/i, '')
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .slice(0, 120) || 'markdown-article';
+}
+
+function waitForImages(container) {
+  return Promise.all(Array.from(container.querySelectorAll('img')).map(async (image) => {
+    if (image.complete) return;
+    try { await image.decode(); } catch { /* keep placeholder dimensions */ }
+  }));
+}
+
+function createEmptyPage(pageHeight) {
+  const card = elements.exportCard.cloneNode(false);
+  card.removeAttribute('id');
+  card.classList.add('capture-page');
+  card.style.transform = 'none';
+  card.style.boxShadow = 'none';
+  card.style.width = `${state.settings.width}px`;
+  card.style.height = `${pageHeight}px`;
+  card.style.minHeight = `${pageHeight}px`;
+  card.style.maxHeight = `${pageHeight}px`;
+  const body = document.createElement('div');
+  body.className = 'markdown-body';
+  card.appendChild(body);
+  elements.captureHost.appendChild(card);
+  return { card, body };
+}
+
+function cloneTextSlice(root, start, end) {
+  let cursor = 0;
+
+  function visit(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const nodeStart = cursor;
+      const nodeEnd = cursor + node.nodeValue.length;
+      cursor = nodeEnd;
+      const sliceStart = Math.max(start, nodeStart) - nodeStart;
+      const sliceEnd = Math.min(end, nodeEnd) - nodeStart;
+      return sliceEnd > sliceStart
+        ? document.createTextNode(node.nodeValue.slice(sliceStart, sliceEnd))
+        : null;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return null;
+    const clone = node.cloneNode(false);
+    Array.from(node.childNodes).forEach((child) => {
+      const childClone = visit(child);
+      if (childClone) clone.appendChild(childClone);
+    });
+    return clone.childNodes.length > 0 ? clone : null;
+  }
+
+  return visit(root);
+}
+
+function splitOversizedTextNode(sourceNode, page, availableHeight) {
+  const textLength = sourceNode.textContent.length;
+  if (textLength < 2 || !['P', 'PRE', 'BLOCKQUOTE', 'UL', 'OL'].includes(sourceNode.tagName)) {
+    return null;
+  }
+
+  let low = 1;
+  let high = textLength - 1;
+  let best = 0;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const candidate = cloneTextSlice(sourceNode, 0, middle);
+    page.body.replaceChildren(candidate);
+    if (page.body.scrollHeight <= availableHeight) {
+      best = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  if (best === 0) {
+    page.body.replaceChildren();
+    return null;
+  }
+
+  const first = cloneTextSlice(sourceNode, 0, best);
+  const remainder = cloneTextSlice(sourceNode, best, textLength);
+  page.body.replaceChildren(first);
+  return remainder;
+}
+
+function buildPaginatedCards(pageHeight, compactPages) {
+  const availableHeight = pageHeight - state.settings.paddingTop - state.settings.paddingBottom;
+  const sourceNodes = Array.from(elements.markdownPreview.children);
+  const pages = [];
+  let current = createEmptyPage(pageHeight);
+  pages.push(current);
+
+  const queue = [...sourceNodes];
+  while (queue.length > 0) {
+    const sourceNode = queue.shift();
+    if (sourceNode.classList.contains('page-break-marker')) {
+      if (current.body.children.length > 0) {
+        current = createEmptyPage(pageHeight);
+        pages.push(current);
+      }
+      continue;
+    }
+
+    const clone = sourceNode.cloneNode(true);
+    current.body.appendChild(clone);
+
+    if (current.body.scrollHeight > availableHeight && current.body.children.length > 1) {
+      clone.remove();
+      current = createEmptyPage(pageHeight);
+      pages.push(current);
+      current.body.appendChild(clone);
+    }
+
+    if (current.body.scrollHeight > availableHeight && current.body.children.length === 1) {
+      const remainder = splitOversizedTextNode(sourceNode, current, availableHeight);
+      if (remainder) {
+        queue.unshift(remainder);
+        current = createEmptyPage(pageHeight);
+        pages.push(current);
+      } else {
+        const expandedHeight = Math.ceil(current.body.scrollHeight + state.settings.paddingTop + state.settings.paddingBottom);
+        current.card.style.height = `${expandedHeight}px`;
+        current.card.style.minHeight = `${expandedHeight}px`;
+        current.card.style.maxHeight = `${expandedHeight}px`;
+        current = createEmptyPage(pageHeight);
+        pages.push(current);
+      }
+    }
+  }
+
+  if (pages.length > 1 && pages.at(-1).body.children.length === 0) {
+    pages.pop().card.remove();
+  }
+
+  if (compactPages) {
+    pages.forEach(({ card, body }) => {
+      const compactHeight = Math.ceil(body.scrollHeight + state.settings.paddingTop + state.settings.paddingBottom);
+      card.style.height = `${compactHeight}px`;
+      card.style.minHeight = `${compactHeight}px`;
+      card.style.maxHeight = `${compactHeight}px`;
+    });
+  }
+
+  return pages.map((page) => page.card);
+}
+
+function getSafeCssHeight() {
+  const physicalWidth = state.settings.width * state.settings.scale;
+  const safePhysicalHeight = Math.min(10000, Math.floor(16_000_000 / physicalWidth));
+  return Math.max(600, Math.min(7000, Math.floor(safePhysicalHeight / state.settings.scale)));
+}
+
+function buildCaptureCards() {
+  elements.captureHost.replaceChildren();
+  const articleHeight = Math.ceil(elements.exportCard.scrollHeight);
+  const safeCssHeight = getSafeCssHeight();
+
+  if (state.settings.exportMode === 'long' && articleHeight <= safeCssHeight) {
+    const card = elements.exportCard.cloneNode(true);
+    card.removeAttribute('id');
+    card.querySelector('[id="markdownPreview"]')?.removeAttribute('id');
+    card.style.transform = 'none';
+    card.style.boxShadow = 'none';
+    card.style.minHeight = '0';
+    elements.captureHost.appendChild(card);
+    return [card];
+  }
+
+  if (state.settings.exportMode === 'pages') {
+    return buildPaginatedCards(Math.min(state.settings.pageHeight, safeCssHeight), false);
+  }
+
+  return buildPaginatedCards(safeCssHeight, true);
+}
+
+function canvasToBlob(canvas, mimeType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('瀏覽器無法建立圖片資料。'));
+    }, mimeType, quality);
+  });
+}
+
+function createThumbnail(canvas) {
+  const maxWidth = 360;
+  const ratio = Math.min(1, maxWidth / canvas.width);
+  const thumbnail = document.createElement('canvas');
+  thumbnail.width = Math.max(1, Math.round(canvas.width * ratio));
+  thumbnail.height = Math.max(1, Math.round(canvas.height * ratio));
+  thumbnail.getContext('2d').drawImage(canvas, 0, 0, thumbnail.width, thumbnail.height);
+  const dataUrl = thumbnail.toDataURL('image/jpeg', .76);
+  thumbnail.width = 1;
+  thumbnail.height = 1;
+  return dataUrl;
+}
+
+async function captureCard(card) {
+  const width = state.settings.width;
+  const height = Math.ceil(card.getBoundingClientRect().height || card.scrollHeight);
+  return html2canvas(card, {
+    scale: state.settings.scale,
+    width,
+    height,
+    windowWidth: width,
+    windowHeight: height,
+    backgroundColor: null,
+    allowTaint: false,
+    useCORS: false,
+    logging: false,
+    imageTimeout: 0,
+    scrollX: 0,
+    scrollY: 0,
+    onclone: async (clonedDocument) => {
+      if (!state.customFontDataUrl || !state.customFontFamily) return;
+      const ClonedFontFace = clonedDocument.defaultView.FontFace;
+      const clonedFont = new ClonedFontFace(state.customFontFamily, `url(${state.customFontDataUrl})`);
+      await clonedFont.load();
+      clonedDocument.fonts.add(clonedFont);
+      await clonedDocument.fonts.ready;
+    },
+  });
+}
+
+async function exportImages() {
+  if (state.exporting) return;
+
+  state.exporting = true;
+  state.generatedFiles = [];
+  state.generatedPreviews = [];
+  elements.exportButton.disabled = true;
+  elements.exportButton.querySelector('.button-label').textContent = '準備輸出';
+  const spinner = document.createElement('span');
+  spinner.className = 'spinner';
+  elements.exportButton.prepend(spinner);
+  setStatus('正在整理字體、圖片與分頁…');
+
+  try {
+    await document.fonts.ready;
+    await waitForImages(elements.exportCard);
+    const cards = buildCaptureCards();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await Promise.all(cards.map(waitForImages));
+
+    const extension = state.settings.format;
+    const mimeType = extension === 'jpg' ? 'image/jpeg' : `image/${extension}`;
+    const quality = state.settings.quality / 100;
+    const baseName = sanitizeFileName(state.settings.fileName);
+
+    for (let index = 0; index < cards.length; index += 1) {
+      elements.exportButton.querySelector('.button-label').textContent = `輸出 ${index + 1}/${cards.length}`;
+      setStatus(`正在繪製第 ${index + 1} / ${cards.length} 張圖片…`);
+      const canvas = await captureCard(cards[index]);
+      const blob = await canvasToBlob(canvas, mimeType, quality);
+      const pageSuffix = cards.length > 1 ? `-${String(index + 1).padStart(2, '0')}` : '';
+      state.generatedFiles.push(new File([blob], `${baseName}${pageSuffix}.${extension}`, { type: mimeType }));
+      state.generatedPreviews.push(createThumbnail(canvas));
+      canvas.width = 1;
+      canvas.height = 1;
+    }
+
+    elements.openOutputButton.hidden = false;
+    renderResultSheet();
+    setStatus(`完成！已產生 ${state.generatedFiles.length} 張圖片。`, 'success');
+    showToast(`圖片製作完成，共 ${state.generatedFiles.length} 張。`);
+  } catch (error) {
+    console.error('Export failed:', error);
+    setStatus(`輸出失敗：${error?.message || '未知錯誤'}`, 'error');
+    showToast(`輸出失敗：${error?.message || '未知錯誤'}`, 'error');
+  } finally {
+    elements.captureHost.replaceChildren();
+    state.exporting = false;
+    elements.exportButton.disabled = false;
+    elements.exportButton.querySelector('.button-label').textContent = '輸出圖片';
+    elements.exportButton.querySelector('.spinner')?.remove();
+  }
+}
+
+function clearResultUrls() {
+  state.resultUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.resultUrls = [];
+}
+
+function renderResultSheet() {
+  clearResultUrls();
+  elements.resultGallery.replaceChildren();
+
+  state.generatedFiles.forEach((file, index) => {
+    const url = URL.createObjectURL(file);
+    state.resultUrls.push(url);
+    const item = document.createElement('article');
+    item.className = 'result-item';
+
+    const image = document.createElement('img');
+    image.src = state.generatedPreviews[index] || url;
+    image.alt = `輸出圖片 ${index + 1}`;
+
+    const meta = document.createElement('div');
+    const label = document.createElement('span');
+    label.textContent = `${index + 1}. ${file.name}`;
+    const download = document.createElement('a');
+    download.href = url;
+    download.download = file.name;
+    download.textContent = '下載這張';
+    meta.append(label, download);
+    item.append(image, meta);
+    elements.resultGallery.appendChild(item);
+  });
+
+  elements.resultSheet.hidden = false;
+  document.body.classList.add('sheet-open');
+}
+
+function closeResultSheet() {
+  elements.resultSheet.hidden = true;
+  document.body.classList.remove('sheet-open');
+}
+
+async function shareGeneratedFiles() {
+  if (state.generatedFiles.length === 0) return;
+  const shareData = {
+    title: 'Markdown 文章圖片',
+    text: `共 ${state.generatedFiles.length} 張文章圖片`,
+    files: state.generatedFiles,
+  };
+
+  if (navigator.canShare?.(shareData)) {
+    try {
+      await navigator.share(shareData);
+      showToast('已開啟系統分享選單。');
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+    }
+  }
+
+  showToast('目前瀏覽器無法一次分享，請使用每張圖片下方的下載按鈕。', 'error');
+  renderResultSheet();
+}
+
+function downloadBlob(file) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportMarkdownBackup() {
+  const file = new File([state.text], `${sanitizeFileName(state.settings.fileName)}.md`, {
+    type: 'text/plain;charset=utf-8',
+  });
+  const shareData = { title: file.name, files: [file] };
+
+  if (navigator.canShare?.(shareData)) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+    }
+  }
+  downloadBlob(file);
+  showToast('Markdown 備份已下載。');
+}
+
+document.querySelectorAll('.tab-button').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('.tab-button').forEach((candidate) => candidate.classList.toggle('active', candidate === button));
+    document.querySelectorAll('.tab-panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === button.dataset.tab));
+  });
+});
+
+document.querySelector('.sidebar').addEventListener('input', handleSettingInput);
+document.querySelector('.sidebar').addEventListener('change', handleSettingInput);
+
+elements.markdownInput.addEventListener('input', () => {
+  state.text = elements.markdownInput.value;
+  queueRender(true);
+});
+
+document.querySelector('.editor-toolbar').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-command]');
+  if (!button) return;
+  const command = button.dataset.command;
+  if (command === 'heading') prefixSelectedLines('## ');
+  else if (command === 'bold') insertAround('**', '**', '粗體文字');
+  else if (command === 'italic') insertAround('*', '*', '斜體文字');
+  else if (command === 'strike') insertAround('~~', '~~', '刪除文字');
+  else if (command === 'quote') prefixSelectedLines('> ');
+  else if (command === 'bullet') prefixSelectedLines('- ');
+  else if (command === 'ordered') prefixSelectedLines((line, index) => `${index + 1}. ${line}`);
+  else if (command === 'task') prefixSelectedLines('- [ ] ');
+  else if (command === 'link') insertAround('[', '](https://example.com)', '連結文字');
+  else if (command === 'code') insertBlock('```\n程式碼\n```');
+  else if (command === 'table') insertBlock('| 欄位一 | 欄位二 |\n| --- | --- |\n| 內容 | 內容 |');
+  else if (command === 'pagebreak') insertBlock('[[分頁]]');
+  else if (command === 'image') elements.imageFileInput.click();
+});
+
+document.querySelector('#importButton').addEventListener('click', () => elements.markdownFileInput.click());
+document.querySelector('#clearButton').addEventListener('click', () => {
+  if (!window.confirm('要清空目前的 Markdown 內容嗎？')) return;
+  elements.markdownInput.value = '';
+  elements.markdownInput.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+elements.markdownFileInput.addEventListener('change', async () => {
+  const file = elements.markdownFileInput.files[0];
+  if (!file) return;
+  state.text = await file.text();
+  elements.markdownInput.value = state.text;
+  state.settings.fileName = file.name.replace(/\.(md|markdown|txt)$/i, '') || DEFAULT_SETTINGS.fileName;
+  syncControls();
+  queueRender(true);
+  elements.markdownFileInput.value = '';
+  showToast(`已開啟 ${file.name}`);
+});
+
+elements.imageFileInput.addEventListener('change', async () => {
+  const file = elements.imageFileInput.files[0];
+  if (!file) return;
+  if (file.size > 15 * 1024 * 1024) {
+    showToast('圖片超過 15 MB，為避免輸出爆記憶體，請先縮小圖片。', 'error');
+    return;
+  }
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    insertBlock(`![${file.name.replace(/\.[^.]+$/, '')}](${dataUrl})`);
+    showToast('圖片已內嵌到 Markdown；整個過程都在本機。');
+  } catch (error) {
+    showToast(error.message || '圖片讀取失敗。', 'error');
+  } finally {
+    elements.imageFileInput.value = '';
+  }
+});
+
+document.querySelector('#customFontButton').addEventListener('click', () => elements.fontFileInput.click());
+elements.fontFileInput.addEventListener('change', async () => {
+  const file = elements.fontFileInput.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 30 * 1024 * 1024) {
+      throw new Error('字體檔案超過 30 MB，請選擇較小的字體檔。');
+    }
+    state.customFontDataUrl = await fileToDataUrl(file);
+    const familyName = `LocalFont_${Date.now()}`;
+    state.customFontFamily = familyName;
+    const fontFace = new FontFace(familyName, `url(${state.customFontDataUrl})`);
+    await fontFace.load();
+    document.fonts.add(fontFace);
+    const select = document.querySelector('#fontFamily');
+    const option = document.createElement('option');
+    option.value = `"${familyName}", sans-serif`;
+    option.textContent = `本機：${file.name}`;
+    select.appendChild(option);
+    state.settings.fontFamily = option.value;
+    elements.customFontLabel.textContent = file.name;
+    applySettings();
+    persistState();
+    showToast(`已載入字體：${file.name}`);
+  } catch (error) {
+    state.customFontDataUrl = null;
+    state.customFontFamily = null;
+    showToast(error.message || '無法載入這個字體檔案。', 'error');
+  } finally {
+    elements.fontFileInput.value = '';
+  }
+});
+
+document.querySelectorAll('[data-preset]').forEach((button) => {
+  button.addEventListener('click', () => {
+    Object.assign(state.settings, COLOR_PRESETS[button.dataset.preset]);
+    applySettings();
+    persistState();
+  });
+});
+
+document.querySelector('#resetLayoutButton').addEventListener('click', () => {
+  [
+    'fontFamily', 'codeFont', 'fontSize', 'lineHeight', 'letterSpacing',
+    'paragraphSpacing', 'headingScale', 'firstLineIndent', 'textAlign', 'codeWrap',
+    'softBreaks', 'width', 'radius', 'paddingLinked', 'paddingTop', 'paddingRight',
+    'paddingBottom', 'paddingLeft', 'previewZoom',
+  ].forEach((key) => { state.settings[key] = DEFAULT_SETTINGS[key]; });
+  applySettings();
+  renderMarkdown();
+  persistState();
+  showToast('排版設定已恢復預設值。');
+});
+
+elements.exportButton.addEventListener('click', exportImages);
+elements.openOutputButton.addEventListener('click', renderResultSheet);
+elements.exportMarkdownButton.addEventListener('click', exportMarkdownBackup);
+elements.shareAllButton.addEventListener('click', shareGeneratedFiles);
+elements.resultSheet.addEventListener('click', (event) => {
+  if (event.target.closest('[data-close-results]')) closeResultSheet();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !elements.resultSheet.hidden) closeResultSheet();
+});
+
+elements.markdownPreview.addEventListener('click', (event) => {
+  if (event.target.closest('a')) event.preventDefault();
+});
+
+const resizeObserver = new ResizeObserver(() => requestAnimationFrame(updatePreviewGeometry));
+resizeObserver.observe(elements.exportCard);
+
+function updateConnectionStatus() {
+  if (!navigator.onLine) {
+    elements.offlineStatus.innerHTML = '<i></i> 離線模式';
+  } else if (navigator.serviceWorker?.controller) {
+    elements.offlineStatus.innerHTML = '<i></i> 已可離線';
+  } else {
+    elements.offlineStatus.innerHTML = '<i></i> 本機運算';
+  }
+}
+
+window.addEventListener('online', updateConnectionStatus);
+window.addEventListener('offline', updateConnectionStatus);
+window.addEventListener('beforeunload', clearResultUrls);
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      await navigator.serviceWorker.register('./service-worker.js');
+      await navigator.serviceWorker.ready;
+      updateConnectionStatus();
+    } catch (error) {
+      console.warn('Offline cache unavailable:', error);
+      elements.offlineStatus.innerHTML = '<i></i> 本機運算';
+    }
+  });
+}
+
+elements.markdownInput.value = state.text;
+syncControls();
+applySettings();
+renderMarkdown();
+updateConnectionStatus();
