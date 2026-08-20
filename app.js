@@ -194,6 +194,7 @@ let renderTimer;
 let persistTimer;
 let toastTimer;
 let captureStylesPromise;
+let captureStyleRules;
 
 function showToast(message, type = '') {
   clearTimeout(toastTimer);
@@ -667,7 +668,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css')
+    captureStylesPromise = fetch('./capture-styles.css?v=104')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -692,6 +693,55 @@ function waitForLayout(targetWindow = window) {
   });
 }
 
+function parseCaptureStyleRules(cssText) {
+  const style = document.createElement('style');
+  style.media = 'not all';
+  style.textContent = cssText;
+  document.head.appendChild(style);
+
+  const rules = [...(style.sheet?.cssRules || [])]
+    .filter((rule) => rule.type === 1)
+    .map((rule) => ({
+      selector: rule.selectorText,
+      cssText: rule.style.cssText,
+    }));
+  style.remove();
+  return rules;
+}
+
+function inlineCaptureStyles(root, cssText) {
+  if (!captureStyleRules) captureStyleRules = parseCaptureStyleRules(cssText);
+  const nodes = [root, ...root.querySelectorAll('*')];
+  const originalInlineStyles = new WeakMap(
+    nodes.map((node) => [node, node.style.cssText]),
+  );
+
+  captureStyleRules.forEach(({ selector, cssText: ruleCssText }) => {
+    const targets = [];
+    if (root.matches(selector)) targets.push(root);
+    targets.push(...root.querySelectorAll(selector));
+
+    targets.forEach((target) => {
+      target.style.cssText += `;${ruleCssText}`;
+    });
+  });
+
+  nodes.forEach((node) => {
+    const originalStyle = originalInlineStyles.get(node);
+    if (originalStyle) node.style.cssText += `;${originalStyle}`;
+  });
+}
+
+function measureCaptureHeight(card) {
+  const article = card.querySelector('.markdown-body');
+  if (!article) return Math.max(1, Math.ceil(card.scrollHeight));
+
+  const cardRect = card.getBoundingClientRect();
+  const articleRect = article.getBoundingClientRect();
+  const paddingBottom = Number.parseFloat(getComputedStyle(card).paddingBottom) || 0;
+  return Math.max(1, Math.ceil(articleRect.bottom - cardRect.top + paddingBottom));
+}
+
 async function captureCard(card) {
   const captureCss = await loadCaptureStyles();
   const width = state.settings.width;
@@ -711,7 +761,9 @@ async function captureCard(card) {
   }
 
   await waitForLayout();
-  const height = Math.max(1, Math.ceil(fixedPageHeight || card.scrollHeight));
+  inlineCaptureStyles(card, captureCss);
+  await waitForLayout();
+  const height = Math.max(1, Math.ceil(fixedPageHeight || measureCaptureHeight(card)));
   card.style.height = `${height}px`;
   card.style.minHeight = `${height}px`;
   card.style.maxHeight = `${height}px`;
