@@ -15,8 +15,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="stylesheet" href="./highlight.css?v=104" />
-    <link rel="stylesheet" href="./styles.css?v=104" />
+    <link rel="stylesheet" href="./highlight.css?v=105" />
+    <link rel="stylesheet" href="./styles.css?v=105" />
   </head>
   <body>
     <header class="app-header">
@@ -87,14 +87,28 @@
           <div class="control-block">
             <label for="fontFamily">文章字體</label>
             <select id="fontFamily" data-setting="fontFamily">
-              <option value='"Microsoft JhengHei", sans-serif'>微軟正黑體</option>
-              <option value='"Noto Sans TC", sans-serif'>Noto Sans TC</option>
-              <option value='"PingFang TC", sans-serif'>蘋方－繁</option>
-              <option value='Arial, sans-serif'>Arial</option>
-              <option value='Georgia, serif'>Georgia</option>
-              <option value='"Times New Roman", serif'>Times New Roman</option>
-              <option value='serif'>系統襯線體</option>
-              <option value='sans-serif'>系統無襯線體</option>
+              <optgroup label="繁體中文">
+                <option value='"Microsoft JhengHei", sans-serif'>微軟正黑體</option>
+                <option value='"Noto Sans TC", sans-serif'>Noto Sans TC</option>
+                <option value='"PingFang TC", sans-serif'>蘋方－繁</option>
+              </optgroup>
+              <optgroup label="English">
+                <option value='"Segoe UI", Helvetica, Arial, sans-serif'>Modern Sans</option>
+                <option value='Arial, sans-serif'>Arial</option>
+                <option value='Georgia, serif'>Georgia Book</option>
+                <option value='"Times New Roman", serif'>Times New Roman</option>
+                <option value='Garamond, "Palatino Linotype", "Book Antiqua", serif'>Garamond Classic</option>
+                <option value='"Trebuchet MS", Arial, sans-serif'>Trebuchet Humanist</option>
+              </optgroup>
+              <optgroup label="日本語">
+                <option value='"Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif'>日本語・ゴシック</option>
+                <option value='"Yu Mincho", YuMincho, "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Noto Serif JP", "MS PMincho", serif'>日本語・明朝</option>
+                <option value='"Hiragino Maru Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif'>日本語・丸ゴシック風</option>
+              </optgroup>
+              <optgroup label="系統備援">
+                <option value='serif'>系統襯線體</option>
+                <option value='sans-serif'>系統無襯線體</option>
+              </optgroup>
             </select>
             <div class="inline-actions">
               <button id="customFontButton" class="secondary-small" type="button">載入本機字體</button>
@@ -228,7 +242,7 @@
       <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
     </div>
 
-    <script src="./boot.js?v=104"></script>
-    <script src="./app.bundle.js?v=104"></script>
+    <script src="./boot.js?v=105"></script>
+    <script src="./app.bundle.js?v=105"></script>
   </body>
 </html>

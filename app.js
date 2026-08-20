@@ -306,10 +306,13 @@ function enhanceTaskLists(root) {
     const match = firstText.nodeValue.match(/^\s*\[([ xX])\]\s+/);
     if (!match) return;
     firstText.nodeValue = firstText.nodeValue.slice(match[0].length);
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.disabled = true;
-    checkbox.checked = match[1].toLowerCase() === 'x';
+    const checked = match[1].toLowerCase() === 'x';
+    const checkbox = document.createElement('span');
+    checkbox.className = `task-checkbox${checked ? ' is-checked' : ''}`;
+    checkbox.setAttribute('role', 'checkbox');
+    checkbox.setAttribute('aria-checked', String(checked));
+    checkbox.setAttribute('aria-disabled', 'true');
+    checkbox.textContent = checked ? '✓' : '';
     container.insertBefore(checkbox, container.firstChild);
     item.classList.add('task-list-item');
   });
@@ -668,7 +671,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=104')
+    captureStylesPromise = fetch('./capture-styles.css?v=105')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -742,6 +745,45 @@ function measureCaptureHeight(card) {
   return Math.max(1, Math.ceil(articleRect.bottom - cardRect.top + paddingBottom));
 }
 
+function traceRoundedRect(context, width, height, radius) {
+  const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+  context.beginPath();
+  context.moveTo(safeRadius, 0);
+  context.lineTo(width - safeRadius, 0);
+  context.quadraticCurveTo(width, 0, width, safeRadius);
+  context.lineTo(width, height - safeRadius);
+  context.quadraticCurveTo(width, height, width - safeRadius, height);
+  context.lineTo(safeRadius, height);
+  context.quadraticCurveTo(0, height, 0, height - safeRadius);
+  context.lineTo(0, safeRadius);
+  context.quadraticCurveTo(0, 0, safeRadius, 0);
+  context.closePath();
+}
+
+function cropCanvasHeight(sourceCanvas, targetHeight) {
+  const height = Math.max(1, Math.min(sourceCanvas.height, Math.round(targetHeight)));
+  if (height >= sourceCanvas.height) return sourceCanvas;
+
+  const width = sourceCanvas.width;
+  const croppedCanvas = document.createElement('canvas');
+  croppedCanvas.width = width;
+  croppedCanvas.height = height;
+
+  const context = croppedCanvas.getContext('2d');
+  const radius = Math.min(
+    state.settings.radius * state.settings.scale,
+    width / 2,
+    height / 2,
+  );
+  traceRoundedRect(context, width, height, radius);
+  context.clip();
+  context.drawImage(sourceCanvas, 0, 0, width, height, 0, 0, width, height);
+
+  sourceCanvas.width = 1;
+  sourceCanvas.height = 1;
+  return croppedCanvas;
+}
+
 async function captureCard(card) {
   const captureCss = await loadCaptureStyles();
   const width = state.settings.width;
@@ -770,8 +812,10 @@ async function captureCard(card) {
   card.style.overflow = 'hidden';
   await waitForLayout();
 
+  let cloneMeasuredHeight = height;
+
   try {
-    return await html2canvas(card, {
+    const canvas = await html2canvas(card, {
       scale: state.settings.scale,
       width,
       height,
@@ -821,8 +865,31 @@ async function captureCard(card) {
         }
         await clonedDocument.fonts.ready;
         clonedCard.getBoundingClientRect();
+
+        if (!fixedPageHeight) {
+          const clonedArticle = clonedCard.querySelector('.markdown-body');
+          if (clonedArticle) {
+            const cardRect = clonedCard.getBoundingClientRect();
+            const articleRect = clonedArticle.getBoundingClientRect();
+            const clonedCardStyles = clonedDocument.defaultView.getComputedStyle(clonedCard);
+            const paddingBottom = Number.parseFloat(clonedCardStyles.paddingBottom) || 0;
+            cloneMeasuredHeight = Math.max(
+              1,
+              Math.ceil(articleRect.bottom - cardRect.top + paddingBottom),
+            );
+          }
+        }
       },
     });
+
+    if (!fixedPageHeight) {
+      const targetHeight = Math.min(
+        canvas.height,
+        Math.max(1, Math.ceil(cloneMeasuredHeight * state.settings.scale)),
+      );
+      if (targetHeight < canvas.height - 1) return cropCanvasHeight(canvas, targetHeight);
+    }
+    return canvas;
   } finally {
     delete card.dataset.captureToken;
   }

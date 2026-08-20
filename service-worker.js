@@ -1,12 +1,12 @@
-const CACHE_NAME = 'markdown-image-studio-v1.0.4-flat';
+const CACHE_NAME = 'markdown-image-studio-v1.0.5-flat';
 const APP_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=104',
-  './highlight.css?v=104',
-  './capture-styles.css?v=104',
-  './boot.js?v=104',
-  './app.bundle.js?v=104',
+  './styles.css?v=105',
+  './highlight.css?v=105',
+  './capture-styles.css?v=105',
+  './boot.js?v=105',
+  './app.bundle.js?v=105',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',

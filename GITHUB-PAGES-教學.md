@@ -19,7 +19,7 @@
 
 ## 二、上傳部署包內容
 
-1. 在電腦上解壓縮 `Markdown-Image-Studio-PWA-1.0.4-GitHub-Pages-FLAT.zip`。
+1. 在電腦上解壓縮 `Markdown-Image-Studio-PWA-1.0.5-GitHub-Pages-FLAT.zip`。
 2. 回到剛建立的 Repository。
 3. 點 **Add file** → **Upload files**。
 4. 打開解壓縮後的資料夾，全選裡面的所有檔案，再拖到 GitHub 上傳區。
@@ -61,7 +61,7 @@ GitHub 官方表示更新最久可能需要約 10 分鐘。剛設定後出現 40
 
 ## 六、日後更新工具
 
-取得新版部署包後，重複「上傳部署包內容」，允許 GitHub 覆蓋同名檔案並 Commit。請確認 `capture-styles.css` 也在 Repository 最外層。重新開啟 Web App；若仍顯示舊版，先用 Safari 開啟原網址並在結尾加上 `?v=104`，確認新版載入後再完全關閉 Web App 並重開。請不要先清除網站資料，以免本機草稿一起消失。
+取得新版部署包後，重複「上傳部署包內容」，允許 GitHub 覆蓋同名檔案並 Commit。請確認 `capture-styles.css` 也在 Repository 最外層。重新開啟 Web App；若仍顯示舊版，先用 Safari 開啟原網址並在結尾加上 `?v=105`，確認新版載入後再完全關閉 Web App 並重開。請不要先清除網站資料，以免本機草稿一起消失。
 
 ## 常見問題
 

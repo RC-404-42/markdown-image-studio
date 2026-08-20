@@ -263,7 +263,28 @@ input[type="color"] { width: 38px; height: 36px; padding: 3px; border: 1px solid
 .markdown-body li { margin: .22em 0; padding-left: .15em; }
 .markdown-body li > p { margin-bottom: .4em; text-indent: 0; }
 .markdown-body .task-list-item { list-style: none; margin-left: -1.25em; }
-.markdown-body .task-list-item input { width: .92em; height: .92em; margin: 0 .55em 0 0; accent-color: var(--article-accent); vertical-align: -.08em; }
+.markdown-body .task-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.08em;
+  height: 1.08em;
+  margin: 0 .52em 0 0;
+  border: 1.5px solid var(--article-border);
+  border-radius: .24em;
+  color: transparent;
+  background: var(--article-bg);
+  font-family: Arial, sans-serif;
+  font-size: .92em;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: -.12em;
+}
+.markdown-body .task-checkbox.is-checked {
+  border-color: var(--article-accent);
+  color: var(--article-bg);
+  background: var(--article-accent);
+}
 .markdown-body blockquote { margin: 0 0 var(--article-paragraph-space); padding: .75em 1em; border-left: .28em solid var(--article-accent); border-radius: .35em; color: var(--article-muted); background: var(--article-quote-bg); }
 .markdown-body blockquote p:last-child { margin-bottom: 0; }
 .markdown-body hr { height: 1px; margin: 1.65em 0; border: 0; background: var(--article-border); }
