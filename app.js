@@ -193,6 +193,7 @@ md.renderer.rules.image = (tokens, index, options, env, self) => {
 let renderTimer;
 let persistTimer;
 let toastTimer;
+let captureStylesPromise;
 
 function showToast(message, type = '') {
   clearTimeout(toastTimer);
@@ -482,6 +483,7 @@ function createEmptyPage(pageHeight) {
   card.style.height = `${pageHeight}px`;
   card.style.minHeight = `${pageHeight}px`;
   card.style.maxHeight = `${pageHeight}px`;
+  card.dataset.captureHeight = String(pageHeight);
   const body = document.createElement('div');
   body.className = 'markdown-body';
   card.appendChild(body);
@@ -588,6 +590,7 @@ function buildPaginatedCards(pageHeight, compactPages) {
         current.card.style.height = `${expandedHeight}px`;
         current.card.style.minHeight = `${expandedHeight}px`;
         current.card.style.maxHeight = `${expandedHeight}px`;
+        current.card.dataset.captureHeight = String(expandedHeight);
         current = createEmptyPage(pageHeight);
         pages.push(current);
       }
@@ -604,6 +607,7 @@ function buildPaginatedCards(pageHeight, compactPages) {
       card.style.height = `${compactHeight}px`;
       card.style.minHeight = `${compactHeight}px`;
       card.style.maxHeight = `${compactHeight}px`;
+      card.dataset.captureHeight = String(compactHeight);
     });
   }
 
@@ -661,31 +665,115 @@ function createThumbnail(canvas) {
   return dataUrl;
 }
 
-async function captureCard(card) {
-  const width = state.settings.width;
-  const height = Math.ceil(card.getBoundingClientRect().height || card.scrollHeight);
-  return html2canvas(card, {
-    scale: state.settings.scale,
-    width,
-    height,
-    windowWidth: width,
-    windowHeight: height,
-    backgroundColor: null,
-    allowTaint: false,
-    useCORS: false,
-    logging: false,
-    imageTimeout: 0,
-    scrollX: 0,
-    scrollY: 0,
-    onclone: async (clonedDocument) => {
-      if (!state.customFontDataUrl || !state.customFontFamily) return;
-      const ClonedFontFace = clonedDocument.defaultView.FontFace;
-      const clonedFont = new ClonedFontFace(state.customFontFamily, `url(${state.customFontDataUrl})`);
-      await clonedFont.load();
-      clonedDocument.fonts.add(clonedFont);
-      await clonedDocument.fonts.ready;
-    },
+function loadCaptureStyles() {
+  if (!captureStylesPromise) {
+    captureStylesPromise = fetch('./capture-styles.css')
+      .then((response) => {
+        if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
+        return response.text();
+      })
+      .then((cssText) => {
+        if (/\b(?:color|lab|lch|oklab|oklch)\s*\(/i.test(cssText)) {
+          throw new Error('輸出排版含有不相容的色彩函式。');
+        }
+        return cssText;
+      })
+      .catch((error) => {
+        captureStylesPromise = null;
+        throw error;
+      });
+  }
+  return captureStylesPromise;
+}
+
+function waitForLayout(targetWindow = window) {
+  return new Promise((resolve) => {
+    targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(resolve));
   });
+}
+
+async function captureCard(card) {
+  const captureCss = await loadCaptureStyles();
+  const width = state.settings.width;
+  const fixedPageHeight = Number(card.dataset.captureHeight || 0);
+  const captureToken = `capture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  card.dataset.captureToken = captureToken;
+  card.style.boxSizing = 'border-box';
+  card.style.width = `${width}px`;
+  card.style.transform = 'none';
+  card.style.boxShadow = 'none';
+  card.style.margin = '0';
+  if (!fixedPageHeight) {
+    card.style.height = 'auto';
+    card.style.minHeight = '0';
+    card.style.maxHeight = 'none';
+  }
+
+  await waitForLayout();
+  const height = Math.max(1, Math.ceil(fixedPageHeight || card.scrollHeight));
+  card.style.height = `${height}px`;
+  card.style.minHeight = `${height}px`;
+  card.style.maxHeight = `${height}px`;
+  card.style.overflow = 'hidden';
+  await waitForLayout();
+
+  try {
+    return await html2canvas(card, {
+      scale: state.settings.scale,
+      width,
+      height,
+      x: 0,
+      y: 0,
+      windowWidth: Math.max(1200, width),
+      windowHeight: Math.max(800, height),
+      backgroundColor: null,
+      allowTaint: false,
+      useCORS: false,
+      logging: false,
+      imageTimeout: 0,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: async (clonedDocument) => {
+        const style = clonedDocument.createElement('style');
+        style.dataset.captureStyles = 'true';
+        style.textContent = captureCss;
+        clonedDocument.head.appendChild(style);
+
+        const clonedCard = clonedDocument.querySelector(`[data-capture-token="${captureToken}"]`);
+        if (!clonedCard) throw new Error('找不到輸出畫布，請重新整理後再試一次。');
+
+        clonedDocument.documentElement.style.margin = '0';
+        clonedDocument.documentElement.style.padding = '0';
+        clonedDocument.documentElement.style.background = 'transparent';
+        clonedDocument.body.style.cssText = `margin:0;padding:0;width:${width}px;height:${height}px;overflow:hidden;background:transparent;`;
+        clonedDocument.body.replaceChildren(clonedCard);
+
+        clonedCard.style.boxSizing = 'border-box';
+        clonedCard.style.position = 'relative';
+        clonedCard.style.inset = 'auto';
+        clonedCard.style.margin = '0';
+        clonedCard.style.width = `${width}px`;
+        clonedCard.style.height = `${height}px`;
+        clonedCard.style.minHeight = `${height}px`;
+        clonedCard.style.maxHeight = `${height}px`;
+        clonedCard.style.transform = 'none';
+        clonedCard.style.boxShadow = 'none';
+        clonedCard.style.overflow = 'hidden';
+
+        if (state.customFontDataUrl && state.customFontFamily) {
+          const ClonedFontFace = clonedDocument.defaultView.FontFace;
+          const clonedFont = new ClonedFontFace(state.customFontFamily, `url(${state.customFontDataUrl})`);
+          await clonedFont.load();
+          clonedDocument.fonts.add(clonedFont);
+        }
+        await clonedDocument.fonts.ready;
+        clonedCard.getBoundingClientRect();
+      },
+    });
+  } finally {
+    delete card.dataset.captureToken;
+  }
 }
 
 async function exportImages() {
@@ -1007,3 +1095,5 @@ syncControls();
 applySettings();
 renderMarkdown();
 updateConnectionStatus();
+document.documentElement.dataset.appReady = 'true';
+document.querySelector('#bootNotice')?.remove();

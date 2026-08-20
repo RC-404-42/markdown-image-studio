@@ -17,11 +17,11 @@ Copyright (c) 2015 Mario Heiderich
 Apache License 2.0 or Mozilla Public License 2.0
 https://github.com/cure53/DOMPurify
 
-html2canvas
-Copyright (c) Niklas von Hertzen
-MIT License — https://github.com/niklasvh/html2canvas
+html2canvas-pro
+Copyright (c) 2024-present yorickshan and html2canvas-pro contributors
+Based on html2canvas by Niklas von Hertzen
+MIT License — https://github.com/yorickshan/html2canvas-pro
 
 highlight.js
 Copyright (c) 2006 Ivan Sagalaev
 BSD 3-Clause License — https://github.com/highlightjs/highlight.js
-
