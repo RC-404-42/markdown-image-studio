@@ -1017,7 +1017,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=120')
+    captureStylesPromise = fetch('./capture-styles.css?v=121')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
