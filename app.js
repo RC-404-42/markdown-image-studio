@@ -101,6 +101,16 @@ const COLOR_PRESETS = {
     mutedColor: '#626a76', borderColor: '#d4d9e0', quoteBackground: '#e9edf3',
     codeBackground: '#101722', codeText: '#e8edf5',
   },
+  sakura: {
+    backgroundColor: '#fff5f7', textColor: '#46363d', accentColor: '#c65f82',
+    mutedColor: '#8a6f78', borderColor: '#ead6dd', quoteBackground: '#f8e7ed',
+    codeBackground: '#31252b', codeText: '#f9edf1',
+  },
+  wisteria: {
+    backgroundColor: '#17131f', textColor: '#f1eaf7', accentColor: '#c39bf2',
+    mutedColor: '#aaa0b4', borderColor: '#3b3148', quoteBackground: '#221b2d',
+    codeBackground: '#0d0a13', codeText: '#eee6f6',
+  },
 };
 
 const elements = {
@@ -128,7 +138,34 @@ const elements = {
   resultSheet: document.querySelector('#resultSheet'),
   resultGallery: document.querySelector('#resultGallery'),
   shareAllButton: document.querySelector('#shareAllButton'),
+  undoButton: document.querySelector('#undoButton'),
+  redoButton: document.querySelector('#redoButton'),
 };
+
+function normalizeStoredPalette(palette) {
+  if (!palette || typeof palette !== 'object') return null;
+  const normalized = {};
+  for (const key of COLOR_SETTINGS) {
+    if (!/^#[0-9a-f]{6}$/i.test(String(palette[key] || ''))) return null;
+    normalized[key] = String(palette[key]).toLowerCase();
+  }
+  return normalized;
+}
+
+function loadCustomPalettes() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('markdown-image-custom-palettes') || '[]');
+    return [0, 1].map((index) => normalizeStoredPalette(stored[index]));
+  } catch {
+    return [null, null];
+  }
+}
+
+function createDefaultSettings() {
+  const settings = { ...DEFAULT_SETTINGS };
+  if (window.matchMedia('(max-width: 900px)').matches) settings.previewZoom = 40;
+  return settings;
+}
 
 function loadStoredState() {
   try {
@@ -142,7 +179,7 @@ function loadStoredState() {
       settings,
     };
   } catch {
-    return { text: SAMPLE_MARKDOWN, settings: { ...DEFAULT_SETTINGS } };
+    return { text: SAMPLE_MARKDOWN, settings: createDefaultSettings() };
   }
 }
 
@@ -156,6 +193,7 @@ const state = {
   exporting: false,
   customFontDataUrl: null,
   customFontFamily: null,
+  customPalettes: loadCustomPalettes(),
 };
 
 const md = markdownit({
@@ -195,6 +233,100 @@ let persistTimer;
 let toastTimer;
 let captureStylesPromise;
 let captureStyleRules;
+
+const EDITOR_HISTORY_LIMIT = 180;
+const editorHistory = {
+  entries: [],
+  index: -1,
+  applying: false,
+  lastInputGroup: '',
+  lastInputAt: 0,
+};
+
+function currentEditorSnapshot() {
+  return {
+    value: elements.markdownInput.value,
+    selectionStart: elements.markdownInput.selectionStart,
+    selectionEnd: elements.markdownInput.selectionEnd,
+  };
+}
+
+function updateHistoryButtons() {
+  elements.undoButton.disabled = editorHistory.index <= 0;
+  elements.redoButton.disabled = editorHistory.index >= editorHistory.entries.length - 1;
+}
+
+function resetEditorHistory() {
+  editorHistory.entries = [currentEditorSnapshot()];
+  editorHistory.index = 0;
+  editorHistory.lastInputGroup = '';
+  editorHistory.lastInputAt = 0;
+  updateHistoryButtons();
+}
+
+function recordEditorHistory(inputType = '', forceNew = false) {
+  if (editorHistory.applying) return;
+  const snapshot = currentEditorSnapshot();
+  const current = editorHistory.entries[editorHistory.index];
+  if (current?.value === snapshot.value) {
+    editorHistory.entries[editorHistory.index] = snapshot;
+    updateHistoryButtons();
+    return;
+  }
+
+  const now = Date.now();
+  const group = ['insertText', 'deleteContentBackward', 'deleteContentForward'].includes(inputType)
+    ? inputType
+    : '';
+  const canCoalesce = !forceNew
+    && group
+    && group === editorHistory.lastInputGroup
+    && now - editorHistory.lastInputAt < 700
+    && editorHistory.index === editorHistory.entries.length - 1;
+
+  if (canCoalesce) {
+    editorHistory.entries[editorHistory.index] = snapshot;
+  } else {
+    editorHistory.entries.splice(editorHistory.index + 1);
+    editorHistory.entries.push(snapshot);
+    if (editorHistory.entries.length > EDITOR_HISTORY_LIMIT) editorHistory.entries.shift();
+    editorHistory.index = editorHistory.entries.length - 1;
+  }
+  editorHistory.lastInputGroup = group;
+  editorHistory.lastInputAt = now;
+  updateHistoryButtons();
+}
+
+function restoreEditorHistory(nextIndex) {
+  const snapshot = editorHistory.entries[nextIndex];
+  if (!snapshot) return;
+  editorHistory.applying = true;
+  editorHistory.index = nextIndex;
+  elements.markdownInput.value = snapshot.value;
+  elements.markdownInput.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+  state.text = snapshot.value;
+  editorHistory.applying = false;
+  editorHistory.lastInputGroup = '';
+  updateHistoryButtons();
+  queueRender(true);
+  elements.markdownInput.focus();
+}
+
+function undoEditor() {
+  if (editorHistory.index > 0) restoreEditorHistory(editorHistory.index - 1);
+}
+
+function redoEditor() {
+  if (editorHistory.index < editorHistory.entries.length - 1) restoreEditorHistory(editorHistory.index + 1);
+}
+
+function replaceEditorText(value) {
+  elements.markdownInput.value = value;
+  elements.markdownInput.setSelectionRange(value.length, value.length);
+  state.text = value;
+  recordEditorHistory('', true);
+  queueRender(true);
+}
 
 function showToast(message, type = '') {
   clearTimeout(toastTimer);
@@ -254,6 +386,69 @@ function syncControls() {
 
   elements.pageHeightControl.hidden = state.settings.exportMode !== 'pages';
   elements.qualityControl.hidden = state.settings.format === 'png';
+}
+
+function currentColorPalette() {
+  return Object.fromEntries(Array.from(COLOR_SETTINGS, (key) => [key, state.settings[key]]));
+}
+
+function renderCustomPalettes() {
+  state.customPalettes.forEach((palette, index) => {
+    const applyButton = document.querySelector(`[data-custom-palette-apply="${index}"]`);
+    const status = document.querySelector(`[data-custom-palette-status="${index}"]`);
+    const clearButton = document.querySelector(`[data-custom-palette-clear="${index}"]`);
+    const swatch = applyButton.querySelector('i');
+    applyButton.disabled = !palette;
+    applyButton.classList.toggle('has-palette', Boolean(palette));
+    swatch.style.setProperty('--a', palette?.backgroundColor || '#252936');
+    swatch.style.setProperty('--b', palette?.accentColor || '#5d6372');
+    status.textContent = palette ? '已儲存，可隨時覆寫' : '尚未儲存';
+    clearButton.disabled = !palette;
+  });
+}
+
+function saveCustomPalette(index) {
+  state.customPalettes[index] = currentColorPalette();
+  renderCustomPalettes();
+  persistState();
+  showToast(`目前配色已儲存到自訂 ${index + 1}。`);
+}
+
+function applyCustomPalette(index) {
+  const palette = state.customPalettes[index];
+  if (!palette) return;
+  Object.assign(state.settings, palette);
+  applySettings();
+  persistState();
+  showToast(`已套用自訂配色 ${index + 1}。`);
+}
+
+function clearCustomPalette(index) {
+  state.customPalettes[index] = null;
+  renderCustomPalettes();
+  persistState();
+  showToast(`已清除自訂配色 ${index + 1}。`);
+}
+
+function resetEverything() {
+  state.settings = createDefaultSettings();
+  state.customPalettes = [null, null];
+  state.customFontDataUrl = null;
+  state.customFontFamily = null;
+  state.generatedFiles = [];
+  state.generatedPreviews = [];
+  clearResultUrls();
+  closeResultSheet();
+  elements.resultGallery.replaceChildren();
+  elements.openOutputButton.hidden = true;
+  document.querySelectorAll('#fontFamily option[data-custom-font]').forEach((option) => option.remove());
+  elements.customFontLabel.textContent = 'TTF / OTF / WOFF';
+  replaceEditorText(SAMPLE_MARKDOWN);
+  applySettings();
+  renderCustomPalettes();
+  persistState();
+  setStatus('準備好了。');
+  showToast('範例草稿、配色、排版與輸出設定都已恢復預設。');
 }
 
 function applySettings() {
@@ -369,6 +564,7 @@ function persistState() {
   persistTimer = setTimeout(() => {
     try {
       localStorage.setItem('markdown-image-settings', JSON.stringify(state.settings));
+      localStorage.setItem('markdown-image-custom-palettes', JSON.stringify(state.customPalettes));
       if (state.text.length < 3_000_000) {
         localStorage.setItem('markdown-image-draft', state.text);
         elements.saveState.textContent = '草稿已儲存在本機';
@@ -451,6 +647,91 @@ function insertBlock(content) {
   textarea.setRangeText(`${leading}${content}\n\n`, start, textarea.selectionEnd, 'end');
   textarea.focus();
   textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function dispatchEditorInput(inputType, data = null) {
+  try {
+    elements.markdownInput.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      inputType,
+      data,
+    }));
+  } catch {
+    elements.markdownInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+async function writeClipboardText(text) {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through to the selection-based copy used by older Safari versions.
+    }
+  }
+
+  const helper = document.createElement('textarea');
+  helper.value = text;
+  helper.setAttribute('readonly', '');
+  helper.style.position = 'fixed';
+  helper.style.left = '-9999px';
+  helper.style.opacity = '0';
+  document.body.appendChild(helper);
+  helper.select();
+  const copied = typeof document.execCommand === 'function' && document.execCommand('copy');
+  helper.remove();
+  if (!copied) throw new Error('瀏覽器未允許存取剪貼簿，請使用 Ctrl/Cmd+C。');
+}
+
+async function readClipboardText() {
+  if (window.isSecureContext && navigator.clipboard?.readText) {
+    try {
+      return await navigator.clipboard.readText();
+    } catch {
+      throw new Error('瀏覽器未允許讀取剪貼簿，請使用系統貼上或 Ctrl/Cmd+V。');
+    }
+  }
+  throw new Error('這個瀏覽器不支援按鈕貼上，請使用系統貼上或 Ctrl/Cmd+V。');
+}
+
+async function copyEditorSelection() {
+  const textarea = elements.markdownInput;
+  const selected = textarea.value.slice(textarea.selectionStart, textarea.selectionEnd);
+  if (!selected) {
+    showToast('請先選取要複製的文字。');
+    textarea.focus();
+    return false;
+  }
+  await writeClipboardText(selected);
+  showToast('已複製選取文字。');
+  textarea.focus();
+  return true;
+}
+
+async function cutEditorSelection() {
+  const textarea = elements.markdownInput;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  if (start === end) {
+    showToast('請先選取要剪下的文字。');
+    textarea.focus();
+    return;
+  }
+  await writeClipboardText(textarea.value.slice(start, end));
+  textarea.setRangeText('', start, end, 'start');
+  textarea.focus();
+  dispatchEditorInput('deleteByCut');
+  showToast('已剪下選取文字。');
+}
+
+async function pasteIntoEditor() {
+  const textarea = elements.markdownInput;
+  const text = await readClipboardText();
+  textarea.setRangeText(String(text || ''), textarea.selectionStart, textarea.selectionEnd, 'end');
+  textarea.focus();
+  dispatchEditorInput('insertFromPaste', String(text || ''));
+  showToast('已貼上剪貼簿文字。');
 }
 
 function fileToDataUrl(file) {
@@ -671,7 +952,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=105')
+    captureStylesPromise = fetch('./capture-styles.css?v=110')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -1048,45 +1329,72 @@ document.querySelectorAll('.tab-button').forEach((button) => {
 document.querySelector('.sidebar').addEventListener('input', handleSettingInput);
 document.querySelector('.sidebar').addEventListener('change', handleSettingInput);
 
-elements.markdownInput.addEventListener('input', () => {
+elements.markdownInput.addEventListener('input', (event) => {
   state.text = elements.markdownInput.value;
+  recordEditorHistory(event.inputType || '');
   queueRender(true);
 });
 
-document.querySelector('.editor-toolbar').addEventListener('click', (event) => {
+elements.markdownInput.addEventListener('keydown', (event) => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+  const key = event.key.toLowerCase();
+  if (key === 'z') {
+    event.preventDefault();
+    if (event.shiftKey) redoEditor();
+    else undoEditor();
+  } else if (key === 'y') {
+    event.preventDefault();
+    redoEditor();
+  }
+});
+
+document.querySelector('.editor-toolbar').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-command]');
   if (!button) return;
   const command = button.dataset.command;
-  if (command === 'heading') prefixSelectedLines('## ');
-  else if (command === 'bold') insertAround('**', '**', '粗體文字');
-  else if (command === 'italic') insertAround('*', '*', '斜體文字');
-  else if (command === 'strike') insertAround('~~', '~~', '刪除文字');
-  else if (command === 'quote') prefixSelectedLines('> ');
-  else if (command === 'bullet') prefixSelectedLines('- ');
-  else if (command === 'ordered') prefixSelectedLines((line, index) => `${index + 1}. ${line}`);
-  else if (command === 'task') prefixSelectedLines('- [ ] ');
-  else if (command === 'link') insertAround('[', '](https://example.com)', '連結文字');
-  else if (command === 'code') insertBlock('```\n程式碼\n```');
-  else if (command === 'table') insertBlock('| 欄位一 | 欄位二 |\n| --- | --- |\n| 內容 | 內容 |');
-  else if (command === 'pagebreak') insertBlock('[[分頁]]');
-  else if (command === 'image') elements.imageFileInput.click();
+  try {
+    if (command === 'undo') undoEditor();
+    else if (command === 'redo') redoEditor();
+    else if (command === 'cut') await cutEditorSelection();
+    else if (command === 'copy') await copyEditorSelection();
+    else if (command === 'paste') await pasteIntoEditor();
+    else if (command === 'heading') prefixSelectedLines('## ');
+    else if (command === 'bold') insertAround('**', '**', '粗體文字');
+    else if (command === 'italic') insertAround('*', '*', '斜體文字');
+    else if (command === 'strike') insertAround('~~', '~~', '刪除文字');
+    else if (command === 'quote') prefixSelectedLines('> ');
+    else if (command === 'bullet') prefixSelectedLines('- ');
+    else if (command === 'ordered') prefixSelectedLines((line, index) => `${index + 1}. ${line}`);
+    else if (command === 'task') prefixSelectedLines('- [ ] ');
+    else if (command === 'link') insertAround('[', '](https://example.com)', '連結文字');
+    else if (command === 'code') insertBlock('```\n程式碼\n```');
+    else if (command === 'table') insertBlock('| 欄位一 | 欄位二 |\n| --- | --- |\n| 內容 | 內容 |');
+    else if (command === 'pagebreak') insertBlock('[[分頁]]');
+    else if (command === 'image') elements.imageFileInput.click();
+  } catch (error) {
+    showToast(error?.message || '剪貼簿操作失敗。', 'error');
+  }
 });
 
 document.querySelector('#importButton').addEventListener('click', () => elements.markdownFileInput.click());
+document.querySelector('#loadSampleButton').addEventListener('click', () => {
+  if (state.text !== SAMPLE_MARKDOWN && state.text.trim() && !window.confirm('載入範例會取代目前內容，要繼續嗎？')) return;
+  replaceEditorText(SAMPLE_MARKDOWN);
+  showToast('已載入範例草稿。');
+});
 document.querySelector('#clearButton').addEventListener('click', () => {
   if (!window.confirm('要清空目前的 Markdown 內容嗎？')) return;
-  elements.markdownInput.value = '';
-  elements.markdownInput.dispatchEvent(new Event('input', { bubbles: true }));
+  replaceEditorText('');
 });
+document.querySelector('#resetAllButton').addEventListener('click', resetEverything);
 
 elements.markdownFileInput.addEventListener('change', async () => {
   const file = elements.markdownFileInput.files[0];
   if (!file) return;
-  state.text = await file.text();
-  elements.markdownInput.value = state.text;
+  const importedText = await file.text();
+  replaceEditorText(importedText);
   state.settings.fileName = file.name.replace(/\.(md|markdown|txt)$/i, '') || DEFAULT_SETTINGS.fileName;
   syncControls();
-  queueRender(true);
   elements.markdownFileInput.value = '';
   showToast(`已開啟 ${file.name}`);
 });
@@ -1127,6 +1435,7 @@ elements.fontFileInput.addEventListener('change', async () => {
     const option = document.createElement('option');
     option.value = `"${familyName}", sans-serif`;
     option.textContent = `本機：${file.name}`;
+    option.dataset.customFont = 'true';
     select.appendChild(option);
     state.settings.fontFamily = option.value;
     elements.customFontLabel.textContent = file.name;
@@ -1148,6 +1457,18 @@ document.querySelectorAll('[data-preset]').forEach((button) => {
     applySettings();
     persistState();
   });
+});
+
+document.querySelectorAll('[data-custom-palette-apply]').forEach((button) => {
+  button.addEventListener('click', () => applyCustomPalette(Number(button.dataset.customPaletteApply)));
+});
+
+document.querySelectorAll('[data-custom-palette-save]').forEach((button) => {
+  button.addEventListener('click', () => saveCustomPalette(Number(button.dataset.customPaletteSave)));
+});
+
+document.querySelectorAll('[data-custom-palette-clear]').forEach((button) => {
+  button.addEventListener('click', () => clearCustomPalette(Number(button.dataset.customPaletteClear)));
 });
 
 document.querySelector('#resetLayoutButton').addEventListener('click', () => {
@@ -1210,8 +1531,10 @@ if ('serviceWorker' in navigator) {
 }
 
 elements.markdownInput.value = state.text;
+resetEditorHistory();
 syncControls();
 applySettings();
+renderCustomPalettes();
 renderMarkdown();
 updateConnectionStatus();
 document.documentElement.dataset.appReady = 'true';

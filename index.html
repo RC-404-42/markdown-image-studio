@@ -15,8 +15,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="stylesheet" href="./highlight.css?v=105" />
-    <link rel="stylesheet" href="./styles.css?v=105" />
+    <link rel="stylesheet" href="./highlight.css?v=110" />
+    <link rel="stylesheet" href="./styles.css?v=110" />
   </head>
   <body>
     <header class="app-header">
@@ -53,10 +53,24 @@
               <button id="loadSampleButton" class="text-button" type="button">載入範例</button>
               <button id="exportMarkdownButton" class="text-button" type="button">備份 .md</button>
               <button id="clearButton" class="text-button danger" type="button">清空</button>
+              <button id="resetAllButton" class="text-button danger" type="button">全部重設</button>
             </div>
           </div>
 
           <div class="editor-toolbar" aria-label="Markdown 快捷工具">
+            <button id="undoButton" type="button" data-command="undo" title="復原（Ctrl/Cmd+Z）" aria-label="復原">↶</button>
+            <button id="redoButton" type="button" data-command="redo" title="重做（Ctrl/Cmd+Y 或 Ctrl/Cmd+Shift+Z）" aria-label="重做">↷</button>
+            <span></span>
+            <button class="icon-command" type="button" data-command="cut" title="剪下（Ctrl/Cmd+X）" aria-label="剪下">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="3"></circle><circle cx="6" cy="17" r="3"></circle><path d="m8.6 8.5 9.9 7M8.6 15.5 18.5 8.5M14.5 12l4 2.8"></path></svg>
+            </button>
+            <button class="icon-command" type="button" data-command="copy" title="複製（Ctrl/Cmd+C）" aria-label="複製">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"></rect><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path></svg>
+            </button>
+            <button class="icon-command" type="button" data-command="paste" title="貼上（Ctrl/Cmd+V）" aria-label="貼上">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M9 12h6M9 16h6"></path></svg>
+            </button>
+            <span></span>
             <button type="button" data-command="heading" title="標題">H</button>
             <button type="button" data-command="bold" title="粗體"><strong>B</strong></button>
             <button type="button" data-command="italic" title="斜體"><em>I</em></button>
@@ -67,7 +81,9 @@
             <button type="button" data-command="ordered" title="編號清單">1.</button>
             <button type="button" data-command="task" title="待辦清單">☑</button>
             <span></span>
-            <button type="button" data-command="link" title="連結">↗</button>
+            <button class="icon-command" type="button" data-command="link" title="插入連結" aria-label="插入連結">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a4 4 0 0 0 5.7 0l2.1-2.1a4 4 0 0 0-5.7-5.7l-1.2 1.2"></path><path d="M13.4 10.6a4 4 0 0 0-5.7 0l-2.1 2.1a4 4 0 0 0 5.7 5.7l1.2-1.2"></path></svg>
+            </button>
             <button type="button" data-command="image" title="內嵌本機圖片">▧</button>
             <button type="button" data-command="code" title="程式碼區塊">&lt;/&gt;</button>
             <button type="button" data-command="table" title="表格">▦</button>
@@ -134,7 +150,7 @@
           <div class="slider-control"><label>首行縮排 <output data-output="firstLineIndent"></output></label><div><input type="range" min="0" max="4" step="0.25" data-setting="firstLineIndent" /><input type="number" min="0" max="4" step="0.25" data-setting="firstLineIndent" /></div></div>
 
           <div class="two-column-controls">
-            <div class="control-block"><label for="textAlign">對齊方式</label><select id="textAlign" data-setting="textAlign"><option value="left">靠左</option><option value="justify">左右對齊</option><option value="center">置中</option></select></div>
+            <div class="control-block"><label for="textAlign">對齊方式</label><select id="textAlign" data-setting="textAlign"><option value="left">靠左</option><option value="justify">左右對齊</option><option value="center">置中</option><option value="right">靠右</option></select></div>
             <label class="toggle-control"><span><b>程式碼自動換行</b><small>避免超出圖片邊界</small></span><input type="checkbox" data-setting="codeWrap" /></label>
           </div>
           <label class="toggle-control"><span><b>單一換行直接斷行</b><small>關閉時遵循標準 Markdown 段落規則</small></span><input type="checkbox" data-setting="softBreaks" /></label>
@@ -162,6 +178,22 @@
             <button type="button" data-preset="midnight"><i class="preset-midnight"></i>深夜</button>
             <button type="button" data-preset="sepia"><i class="preset-sepia"></i>復古</button>
             <button type="button" data-preset="ink"><i class="preset-ink"></i>冷墨</button>
+            <button type="button" data-preset="sakura"><i class="preset-sakura"></i>櫻霧</button>
+            <button type="button" data-preset="wisteria"><i class="preset-wisteria"></i>夜藤</button>
+            <button type="button" class="custom-preset-button" data-custom-palette-apply="0"><i></i>自訂 1</button>
+            <button type="button" class="custom-preset-button" data-custom-palette-apply="1"><i></i>自訂 2</button>
+          </div>
+          <div class="custom-palette-records">
+            <div class="custom-palette-row" data-custom-palette-row="0">
+              <span><b>自訂配色 1</b><small data-custom-palette-status="0">尚未儲存</small></span>
+              <button type="button" data-custom-palette-save="0">儲存目前</button>
+              <button type="button" data-custom-palette-clear="0">清除</button>
+            </div>
+            <div class="custom-palette-row" data-custom-palette-row="1">
+              <span><b>自訂配色 2</b><small data-custom-palette-status="1">尚未儲存</small></span>
+              <button type="button" data-custom-palette-save="1">儲存目前</button>
+              <button type="button" data-custom-palette-clear="1">清除</button>
+            </div>
           </div>
           <div class="color-grid">
             <label>背景色<span><input type="color" data-setting="backgroundColor" /><input type="text" data-setting="backgroundColor" /></span></label>
@@ -242,7 +274,7 @@
       <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
     </div>
 
-    <script src="./boot.js?v=105"></script>
-    <script src="./app.bundle.js?v=105"></script>
+    <script src="./boot.js?v=110"></script>
+    <script src="./app.bundle.js?v=110"></script>
   </body>
 </html>

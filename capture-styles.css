@@ -52,7 +52,7 @@ code.hljs { padding: 3px 5px; }
   font-weight: 750;
   line-height: 1.28;
   letter-spacing: calc(var(--article-letter-spacing) - .02em);
-  text-align: left;
+  text-align: var(--article-align, left);
 }
 .markdown-body h1 { font-size: var(--h1-size, 2.1em); }
 .markdown-body h2 { padding-bottom: .24em; border-bottom: 1px solid var(--article-border); font-size: var(--h2-size, 1.65em); }
@@ -93,10 +93,10 @@ code.hljs { padding: 3px 5px; }
 .markdown-body blockquote { margin: 0 0 var(--article-paragraph-space); padding: .75em 1em; border-left: .28em solid var(--article-accent); border-radius: .35em; color: var(--article-muted); background: var(--article-quote-bg); }
 .markdown-body blockquote p:last-child { margin-bottom: 0; }
 .markdown-body hr { height: 1px; margin: 1.65em 0; border: 0; background: var(--article-border); }
-.markdown-body code { padding: .12em .34em; border-radius: .28em; color: var(--article-accent); background: var(--article-inline-code-bg); font-family: var(--article-code-font); font-size: .88em; letter-spacing: 0; }
+.markdown-body code { display: inline-block; padding: .12em .34em; border-radius: .28em; color: var(--article-accent); background: var(--article-inline-code-bg); font-family: var(--article-code-font); font-size: .88em; letter-spacing: 0; white-space: nowrap; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .markdown-body pre { margin: 0 0 var(--article-paragraph-space); padding: 1em 1.1em; overflow: hidden; border: 1px solid var(--article-code-border); border-radius: .55em; color: var(--article-code-text); background: var(--article-code-bg); tab-size: 2; }
-.markdown-body pre code { display: block; padding: 0; color: inherit; background: transparent; font-family: var(--article-code-font); font-size: .84em; line-height: 1.65; text-indent: 0; white-space: var(--article-code-wrap, pre-wrap); overflow-wrap: var(--article-code-overflow, anywhere); }
-.markdown-body table { width: 100%; margin: 0 0 var(--article-paragraph-space); border-collapse: collapse; font-size: .9em; text-align: left; }
+.markdown-body pre code { display: block; padding: 0; color: inherit; background: transparent; font-family: var(--article-code-font); font-size: .84em; line-height: 1.65; text-align: left; text-indent: 0; white-space: var(--article-code-wrap, pre-wrap); overflow-wrap: var(--article-code-overflow, anywhere); }
+.markdown-body table { width: 100%; margin: 0 0 var(--article-paragraph-space); border-collapse: collapse; font-size: .9em; text-align: var(--article-align, left); }
 .markdown-body th, .markdown-body td { padding: .55em .65em; border: 1px solid var(--article-border); vertical-align: top; }
 .markdown-body th { color: var(--article-text); background: var(--article-table-head); font-weight: 700; }
 .markdown-body tr:nth-child(even) td { background: var(--article-row-alt); }
