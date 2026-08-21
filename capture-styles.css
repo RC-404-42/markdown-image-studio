@@ -102,4 +102,5 @@ code.hljs { padding: 3px 5px; }
 .markdown-body tr:nth-child(even) td { background: var(--article-row-alt); }
 .markdown-body img { display: block; max-width: 100%; height: auto; margin: .8em auto var(--article-paragraph-space); border-radius: .5em; }
 .markdown-body .image-placeholder { display: block; padding: .8em 1em; margin-bottom: var(--article-paragraph-space); border: 1px dashed var(--article-border); border-radius: .45em; color: var(--article-muted); background: var(--article-muted-bg); font-size: .82em; text-align: center; }
+.markdown-body .remote-image-error { border-color: var(--article-accent); overflow-wrap: anywhere; }
 .markdown-body .page-break-marker { display: none; }

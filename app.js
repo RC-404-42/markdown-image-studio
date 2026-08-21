@@ -222,8 +222,16 @@ md.renderer.rules.image = (tokens, index, options, env, self) => {
   const token = tokens[index];
   const source = token.attrGet('src') || '';
   const alt = token.content || '圖片';
-  if (!/^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);/i.test(source) && !source.startsWith('blob:')) {
-    return `<span class="image-placeholder">🖼 ${md.utils.escapeHtml(alt)}（外部圖片未載入，請用工具列的圖片按鈕內嵌）</span>`;
+  const isEmbeddedImage = /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);/i.test(source) || source.startsWith('blob:');
+  const isRemoteImage = /^https:\/\//i.test(source);
+  if (!isEmbeddedImage && !isRemoteImage) {
+    return `<span class="image-placeholder remote-image-error">🖼 ${md.utils.escapeHtml(alt)}（只支援 HTTPS 網路圖片或本機內嵌圖片）</span>`;
+  }
+  if (isRemoteImage) {
+    token.attrSet('crossorigin', 'anonymous');
+    token.attrSet('referrerpolicy', 'no-referrer');
+    token.attrSet('loading', 'eager');
+    token.attrSet('data-remote-image', 'true');
   }
   return self.renderToken(tokens, index, options);
 };
@@ -522,15 +530,40 @@ function enhancePageBreaks(root) {
   });
 }
 
+function replaceRemoteImageWithError(image) {
+  if (!image.isConnected) return;
+  let sourceName = '這個來源';
+  try { sourceName = new URL(image.currentSrc || image.src).hostname || sourceName; } catch { /* use generic source name */ }
+  const alt = image.alt?.trim() || '網路圖片';
+  const placeholder = document.createElement('span');
+  placeholder.className = 'image-placeholder remote-image-error';
+  placeholder.textContent = `🖼 ${alt}（${sourceName} 未允許跨網域讀取，或圖片網址無法使用；請改用允許 CORS 的 HTTPS 圖片或本機內嵌圖片）`;
+  image.replaceWith(placeholder);
+  requestAnimationFrame(updatePreviewGeometry);
+}
+
+function enhanceRemoteImages(root) {
+  root.querySelectorAll('img[data-remote-image]').forEach((image) => {
+    image.addEventListener('load', () => requestAnimationFrame(updatePreviewGeometry), { once: true });
+    image.addEventListener('error', () => replaceRemoteImageWithError(image), { once: true });
+    if (image.complete) {
+      if (image.naturalWidth > 0) requestAnimationFrame(updatePreviewGeometry);
+      else replaceRemoteImageWithError(image);
+    }
+  });
+}
+
 function renderMarkdown() {
   md.set({ breaks: state.settings.softBreaks });
   const rendered = md.render(state.text);
   elements.markdownPreview.innerHTML = DOMPurify.sanitize(rendered, {
     USE_PROFILES: { html: true },
+    ADD_ATTR: ['crossorigin', 'referrerpolicy', 'loading', 'data-remote-image'],
     FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'style'],
   });
   enhanceTaskLists(elements.markdownPreview);
   enhancePageBreaks(elements.markdownPreview);
+  enhanceRemoteImages(elements.markdownPreview);
 
   const characterCount = state.text.replace(/\s/g, '').length;
   const lineCount = state.text ? state.text.split('\n').length : 0;
@@ -649,6 +682,32 @@ function insertBlock(content) {
   textarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+function normalizeRemoteImageUrl(value) {
+  let url;
+  try { url = new URL(String(value || '').trim()); } catch { throw new Error('圖片網址格式不正確。'); }
+  if (url.protocol !== 'https:') throw new Error('網路圖片只支援 HTTPS 網址。');
+  if (url.username || url.password) throw new Error('圖片網址不能包含帳號或密碼。');
+  return url.href;
+}
+
+function escapeMarkdownAlt(value) {
+  return String(value || '網路圖片')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]');
+}
+
+function insertRemoteImageFromPrompt() {
+  const input = window.prompt('貼上 HTTPS 圖片網址：');
+  if (input === null || !input.trim()) return;
+  const url = normalizeRemoteImageUrl(input);
+  const altInput = window.prompt('圖片說明（可留白）：', '網路圖片');
+  if (altInput === null) return;
+  insertBlock(`![${escapeMarkdownAlt(altInput)}](<${url}>)`);
+  showToast('已插入網路圖片；來源需允許 CORS 才能預覽與輸出。');
+}
+
 function dispatchEditorInput(inputType, data = null) {
   try {
     elements.markdownInput.dispatchEvent(new InputEvent('input', {
@@ -753,8 +812,14 @@ function sanitizeFileName(name) {
 
 function waitForImages(container) {
   return Promise.all(Array.from(container.querySelectorAll('img')).map(async (image) => {
-    if (image.complete) return;
-    try { await image.decode(); } catch { /* keep placeholder dimensions */ }
+    if (!image.complete) {
+      try { await image.decode(); } catch { /* validate naturalWidth below */ }
+    }
+    if (image.naturalWidth > 0) return;
+    if (image.dataset.remoteImage) {
+      throw new Error('有網路圖片無法載入；請確認網址可直接開啟，而且圖片來源允許 CORS。');
+    }
+    throw new Error('有一張圖片無法載入，請重新選擇圖片後再試一次。');
   }));
 }
 
@@ -952,7 +1017,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=110')
+    captureStylesPromise = fetch('./capture-styles.css?v=120')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -1106,9 +1171,9 @@ async function captureCard(card) {
       windowHeight: Math.max(800, height),
       backgroundColor: null,
       allowTaint: false,
-      useCORS: false,
+      useCORS: true,
       logging: false,
-      imageTimeout: 0,
+      imageTimeout: 15000,
       scrollX: 0,
       scrollY: 0,
       onclone: async (clonedDocument) => {
@@ -1371,6 +1436,7 @@ document.querySelector('.editor-toolbar').addEventListener('click', async (event
     else if (command === 'table') insertBlock('| 欄位一 | 欄位二 |\n| --- | --- |\n| 內容 | 內容 |');
     else if (command === 'pagebreak') insertBlock('[[分頁]]');
     else if (command === 'image') elements.imageFileInput.click();
+    else if (command === 'remote-image') insertRemoteImageFromPrompt();
   } catch (error) {
     showToast(error?.message || '剪貼簿操作失敗。', 'error');
   }

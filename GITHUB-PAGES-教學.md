@@ -19,7 +19,7 @@
 
 ## 二、上傳部署包內容
 
-1. 在電腦上解壓縮 `Markdown-Image-Studio-PWA-1.1.0-GitHub-Pages-FLAT.zip`。
+1. 在電腦上解壓縮 `Markdown-Image-Studio-PWA-1.2.0-GitHub-Pages-FLAT.zip`。
 2. 回到剛建立的 Repository。
 3. 點 **Add file** → **Upload files**。
 4. 打開解壓縮後的資料夾，全選裡面的所有檔案，再拖到 GitHub 上傳區。
@@ -61,7 +61,7 @@ GitHub 官方表示更新最久可能需要約 10 分鐘。剛設定後出現 40
 
 ## 六、日後更新工具
 
-取得新版部署包後，重複「上傳部署包內容」，允許 GitHub 覆蓋同名檔案並 Commit。請確認 `capture-styles.css` 也在 Repository 最外層。重新開啟 Web App；若仍顯示舊版，先用 Safari 開啟原網址並在結尾加上 `?v=110`，確認新版載入後再完全關閉 Web App 並重開。請不要先清除網站資料，以免本機草稿一起消失。
+取得新版部署包後，重複「上傳部署包內容」，允許 GitHub 覆蓋同名檔案並 Commit。請確認 `capture-styles.css` 也在 Repository 最外層。重新開啟 Web App；若仍顯示舊版，先用 Safari 開啟原網址並在結尾加上 `?v=120`，確認新版載入後再完全關閉 Web App 並重開。請不要先清除網站資料，以免本機草稿一起消失。
 
 ## 常見問題
 
@@ -79,7 +79,11 @@ GitHub 官方表示更新最久可能需要約 10 分鐘。剛設定後出現 40
 
 ### 文章會上傳到 GitHub 嗎？
 
-不會。GitHub Pages 只託管工具本身；Markdown 解析、圖片渲染及檔案產生都在你的 iPhone 裡完成。
+不會。GitHub Pages 只託管工具本身；Markdown 解析與檔案產生都在你的 iPhone 裡完成。若使用 HTTPS 網路圖片，瀏覽器只會向圖片原始網站讀取該圖片。
+
+### 網路圖片顯示 CORS 錯誤
+
+這表示圖片網站不允許其他網頁讀取圖片像素，或禁止外部連結。這是瀏覽器的安全限制，純 GitHub Pages 網站無法繞過；請改用允許 CORS 的 HTTPS 圖片網址，或下載圖片後使用「內嵌本機圖片」。
 
 ## 官方參考
 
