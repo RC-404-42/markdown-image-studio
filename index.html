@@ -15,8 +15,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="stylesheet" href="./highlight.css?v=121" />
-    <link rel="stylesheet" href="./styles.css?v=121" />
+    <link rel="stylesheet" href="./highlight.css?v=130" />
+    <link rel="stylesheet" href="./styles.css?v=130" />
   </head>
   <body>
     <header class="app-header">
@@ -70,6 +70,9 @@
             <button class="icon-command" type="button" data-command="paste" title="貼上（Ctrl/Cmd+V）" aria-label="貼上">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><rect x="9" y="3" width="6" height="4" rx="1"></rect><path d="M9 12h6M9 16h6"></path></svg>
             </button>
+            <button class="icon-command" type="button" data-command="find-replace" title="尋找／取代（Ctrl/Cmd+F）" aria-label="尋找／取代">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"></circle><path d="m15 15 5 5M4 20h8M4 17h5"></path></svg>
+            </button>
             <span></span>
             <button type="button" data-command="heading" title="標題">H</button>
             <button type="button" data-command="bold" title="粗體"><strong>B</strong></button>
@@ -93,6 +96,22 @@
             <button type="button" data-command="code" title="程式碼區塊">&lt;/&gt;</button>
             <button type="button" data-command="table" title="表格">▦</button>
             <button type="button" data-command="pagebreak" title="強制分頁">⇥</button>
+          </div>
+
+          <div id="findReplacePanel" class="find-replace-panel" hidden aria-label="尋找與取代">
+            <div class="find-replace-fields">
+              <label><span>尋找</span><input id="findInput" type="text" autocomplete="off" spellcheck="false" placeholder="要尋找的文字或標點"></label>
+              <label><span>取代</span><input id="replaceInput" type="text" autocomplete="off" spellcheck="false" placeholder="取代成（可留空）"></label>
+            </div>
+            <div class="find-replace-actions">
+              <span id="findResultCount" class="find-result-count" aria-live="polite">請輸入尋找文字</span>
+              <label class="match-case"><input id="matchCaseInput" type="checkbox"> 區分大小寫</label>
+              <button id="findPreviousButton" class="secondary-small" type="button" title="上一筆（Shift+Enter）">上一筆</button>
+              <button id="findNextButton" class="secondary-small" type="button" title="下一筆（Enter）">下一筆</button>
+              <button id="replaceOneButton" class="secondary-small" type="button">取代</button>
+              <button id="replaceAllButton" class="secondary-small" type="button">全部取代</button>
+              <button id="closeFindReplaceButton" class="find-close" type="button" aria-label="關閉尋找與取代" title="關閉（Esc）">×</button>
+            </div>
           </div>
 
           <textarea id="markdownInput" spellcheck="false" aria-label="Markdown 內容"></textarea>
@@ -280,7 +299,7 @@
       <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
     </div>
 
-    <script src="./boot.js?v=121"></script>
-    <script src="./app.bundle.js?v=121"></script>
+    <script src="./boot.js?v=130"></script>
+    <script src="./app.bundle.js?v=130"></script>
   </body>
 </html>

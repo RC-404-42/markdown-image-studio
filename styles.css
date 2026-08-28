@@ -111,6 +111,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .editor-toolbar .icon-command { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .editor-toolbar .icon-command svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 
+.find-replace-panel {
+  padding: 10px;
+  border: 1px solid var(--ui-line);
+  border-top: 0;
+  border-bottom: 0;
+  background: #0c0f17;
+}
+.find-replace-panel[hidden] { display: none; }
+.find-replace-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.find-replace-fields label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 7px; color: var(--ui-muted); font-size: 10px; font-weight: 700; }
+.find-replace-fields input { min-width: 0; min-height: 32px; padding: 0 9px; }
+.find-replace-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.find-result-count { min-width: 82px; margin-right: auto; color: var(--ui-dim); font-size: 9px; }
+.match-case { display: inline-flex; align-items: center; gap: 5px; color: var(--ui-muted); font-size: 9px; white-space: nowrap; }
+.match-case input { accent-color: var(--ui-accent); }
+.find-close { width: 27px; height: 27px; padding: 0; border: 1px solid transparent; border-radius: 6px; color: var(--ui-muted); background: transparent; cursor: pointer; font-size: 18px; line-height: 1; }
+.find-close:hover { color: white; border-color: var(--ui-line); background: rgba(255,255,255,.055); }
+
 #markdownInput {
   display: block;
   width: 100%;
@@ -380,6 +398,7 @@ body.sheet-open { overflow: hidden; }
   .tiny-actions { flex-wrap: wrap; justify-content: flex-end; }
   .text-button { min-height: 32px; }
   .editor-toolbar button { min-width: 34px; height: 34px; }
+  .find-replace-fields { grid-template-columns: 1fr; }
   #markdownInput { height: 52vh; min-height: 340px; resize: vertical; font-size: 13px; }
   .preview-pane { display: grid; grid-template-rows: auto minmax(420px, 66vh) auto; min-height: 550px; overflow: visible; }
   .preview-toolbar { min-height: 70px; padding: 10px 14px; }

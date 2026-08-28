@@ -140,6 +140,16 @@ const elements = {
   shareAllButton: document.querySelector('#shareAllButton'),
   undoButton: document.querySelector('#undoButton'),
   redoButton: document.querySelector('#redoButton'),
+  findReplacePanel: document.querySelector('#findReplacePanel'),
+  findInput: document.querySelector('#findInput'),
+  replaceInput: document.querySelector('#replaceInput'),
+  matchCaseInput: document.querySelector('#matchCaseInput'),
+  findResultCount: document.querySelector('#findResultCount'),
+  findPreviousButton: document.querySelector('#findPreviousButton'),
+  findNextButton: document.querySelector('#findNextButton'),
+  replaceOneButton: document.querySelector('#replaceOneButton'),
+  replaceAllButton: document.querySelector('#replaceAllButton'),
+  closeFindReplaceButton: document.querySelector('#closeFindReplaceButton'),
 };
 
 function normalizeStoredPalette(palette) {
@@ -334,6 +344,111 @@ function replaceEditorText(value) {
   state.text = value;
   recordEditorHistory('', true);
   queueRender(true);
+}
+
+function collectEditorMatches() {
+  const needle = elements.findInput.value;
+  if (!needle) return [];
+  const source = elements.markdownInput.value;
+  const escapedNeedle = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matcher = new RegExp(escapedNeedle, elements.matchCaseInput.checked ? 'g' : 'gi');
+  const matches = [];
+  let match;
+  while ((match = matcher.exec(source)) !== null) {
+    matches.push({ start: match.index, end: match.index + match[0].length });
+  }
+  return matches;
+}
+
+function selectedMatchIndex(matches) {
+  const { selectionStart, selectionEnd } = elements.markdownInput;
+  return matches.findIndex((match) => match.start === selectionStart && match.end === selectionEnd);
+}
+
+function refreshFindResults() {
+  const matches = collectEditorMatches();
+  const currentIndex = selectedMatchIndex(matches);
+  if (!elements.findInput.value) elements.findResultCount.textContent = '請輸入尋找文字';
+  else if (!matches.length) elements.findResultCount.textContent = '找不到符合文字';
+  else if (currentIndex >= 0) elements.findResultCount.textContent = `第 ${currentIndex + 1} / ${matches.length} 筆`;
+  else elements.findResultCount.textContent = `共 ${matches.length} 筆`;
+  const disabled = !elements.findInput.value || !matches.length;
+  elements.findPreviousButton.disabled = disabled;
+  elements.findNextButton.disabled = disabled;
+  elements.replaceOneButton.disabled = disabled;
+  elements.replaceAllButton.disabled = disabled;
+  return matches;
+}
+
+function openFindReplace() {
+  elements.findReplacePanel.hidden = false;
+  const selected = elements.markdownInput.value.slice(elements.markdownInput.selectionStart, elements.markdownInput.selectionEnd);
+  if (selected && !selected.includes('\n') && selected.length <= 200) elements.findInput.value = selected;
+  refreshFindResults();
+  elements.findInput.focus();
+  elements.findInput.select();
+}
+
+function closeFindReplace() {
+  elements.findReplacePanel.hidden = true;
+  elements.markdownInput.focus();
+}
+
+function findEditorMatch(direction = 1) {
+  const matches = refreshFindResults();
+  if (!matches.length) return false;
+  const textarea = elements.markdownInput;
+  const currentIndex = selectedMatchIndex(matches);
+  let nextIndex;
+  if (currentIndex >= 0) {
+    nextIndex = (currentIndex + direction + matches.length) % matches.length;
+  } else if (direction > 0) {
+    nextIndex = matches.findIndex((match) => match.start >= textarea.selectionEnd);
+    if (nextIndex === -1) nextIndex = 0;
+  } else {
+    nextIndex = matches.length - 1;
+    for (let index = matches.length - 1; index >= 0; index -= 1) {
+      if (matches[index].end <= textarea.selectionStart) { nextIndex = index; break; }
+    }
+  }
+  const match = matches[nextIndex];
+  textarea.setSelectionRange(match.start, match.end);
+  elements.findResultCount.textContent = `第 ${nextIndex + 1} / ${matches.length} 筆`;
+  return true;
+}
+
+function replaceCurrentMatch() {
+  let matches = refreshFindResults();
+  if (!matches.length) return;
+  let currentIndex = selectedMatchIndex(matches);
+  if (currentIndex < 0) {
+    if (!findEditorMatch(1)) return;
+    matches = collectEditorMatches();
+    currentIndex = selectedMatchIndex(matches);
+  }
+  const match = matches[currentIndex];
+  const replacement = elements.replaceInput.value;
+  elements.markdownInput.setRangeText(replacement, match.start, match.end, 'select');
+  dispatchEditorInput('insertReplacementText', replacement);
+  refreshFindResults();
+  showToast('已取代目前這一筆。');
+}
+
+function replaceAllMatches() {
+  const matches = refreshFindResults();
+  if (!matches.length) return;
+  const source = elements.markdownInput.value;
+  const replacement = elements.replaceInput.value;
+  const parts = [];
+  let offset = 0;
+  for (const match of matches) {
+    parts.push(source.slice(offset, match.start), replacement);
+    offset = match.end;
+  }
+  parts.push(source.slice(offset));
+  replaceEditorText(parts.join(''));
+  refreshFindResults();
+  showToast(`已全部取代 ${matches.length} 筆。`);
 }
 
 function showToast(message, type = '') {
@@ -1017,7 +1132,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=121')
+    captureStylesPromise = fetch('./capture-styles.css?v=130')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -1397,6 +1512,7 @@ document.querySelector('.sidebar').addEventListener('change', handleSettingInput
 elements.markdownInput.addEventListener('input', (event) => {
   state.text = elements.markdownInput.value;
   recordEditorHistory(event.inputType || '');
+  if (!elements.findReplacePanel.hidden) refreshFindResults();
   queueRender(true);
 });
 
@@ -1413,6 +1529,31 @@ elements.markdownInput.addEventListener('keydown', (event) => {
   }
 });
 
+document.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    openFindReplace();
+  } else if (event.key === 'Escape' && !elements.findReplacePanel.hidden) {
+    event.preventDefault();
+    closeFindReplace();
+  }
+});
+
+[elements.findInput, elements.replaceInput].forEach((input) => {
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    findEditorMatch(event.shiftKey ? -1 : 1);
+  });
+});
+elements.findInput.addEventListener('input', refreshFindResults);
+elements.matchCaseInput.addEventListener('change', refreshFindResults);
+elements.findPreviousButton.addEventListener('click', () => findEditorMatch(-1));
+elements.findNextButton.addEventListener('click', () => findEditorMatch(1));
+elements.replaceOneButton.addEventListener('click', replaceCurrentMatch);
+elements.replaceAllButton.addEventListener('click', replaceAllMatches);
+elements.closeFindReplaceButton.addEventListener('click', closeFindReplace);
+
 document.querySelector('.editor-toolbar').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-command]');
   if (!button) return;
@@ -1423,6 +1564,7 @@ document.querySelector('.editor-toolbar').addEventListener('click', async (event
     else if (command === 'cut') await cutEditorSelection();
     else if (command === 'copy') await copyEditorSelection();
     else if (command === 'paste') await pasteIntoEditor();
+    else if (command === 'find-replace') openFindReplace();
     else if (command === 'heading') prefixSelectedLines('## ');
     else if (command === 'bold') insertAround('**', '**', '粗體文字');
     else if (command === 'italic') insertAround('*', '*', '斜體文字');
