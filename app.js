@@ -127,6 +127,7 @@ const elements = {
   exportMarkdownButton: document.querySelector('#exportMarkdownButton'),
   pageHeightControl: document.querySelector('#pageHeightControl'),
   qualityControl: document.querySelector('#qualityControl'),
+  longModeLimitNote: document.querySelector('#longModeLimitNote'),
   captureHost: document.querySelector('#captureHost'),
   markdownFileInput: document.querySelector('#markdownFileInput'),
   imageFileInput: document.querySelector('#imageFileInput'),
@@ -509,6 +510,7 @@ function syncControls() {
 
   elements.pageHeightControl.hidden = state.settings.exportMode !== 'pages';
   elements.qualityControl.hidden = state.settings.format === 'png';
+  updateLongModeLimitNote();
 }
 
 function currentColorPalette() {
@@ -696,14 +698,34 @@ function updatePreviewGeometry() {
 
   const physicalWidth = Math.round(width * state.settings.scale);
   const physicalHeight = Math.round(height * state.settings.scale);
-  const effectivePageHeight = Math.min(state.settings.pageHeight, getSafeCssHeight());
+  const safeCssHeight = getSafeCssHeight();
+  const effectivePageHeight = Math.min(state.settings.pageHeight, safeCssHeight);
   const pageEstimate = state.settings.exportMode === 'pages'
     ? Math.max(1, Math.ceil(height / effectivePageHeight))
     : 1;
   elements.renderInfo.textContent = `${width} × ${height} px · 預覽 ${state.settings.previewZoom}%`;
   elements.exportEstimate.textContent = state.settings.exportMode === 'pages'
     ? `預估 ${pageEstimate} 張 · 每張最高 ${physicalWidth} × ${effectivePageHeight * state.settings.scale} px`
-    : `輸出約 ${physicalWidth} × ${physicalHeight} px${height > getSafeCssHeight() ? ' · 過高時自動分張' : ''}`;
+    : `輸出約 ${physicalWidth} × ${physicalHeight} px${height > safeCssHeight ? ` · 超過單張安全上限 ${physicalWidth} × ${safeCssHeight * state.settings.scale} px，將自動分張` : ''}`;
+  updateLongModeLimitNote(height);
+}
+
+function updateLongModeLimitNote(articleHeight = Math.ceil(elements.exportCard.scrollHeight || 0)) {
+  if (!elements.longModeLimitNote) return;
+  const isLongMode = state.settings.exportMode === 'long';
+  elements.longModeLimitNote.hidden = !isLongMode;
+  if (!isLongMode) return;
+
+  const scale = state.settings.scale;
+  const safeCssHeight = getSafeCssHeight();
+  const physicalWidth = Math.round(state.settings.width * scale);
+  const safePhysicalHeight = safeCssHeight * scale;
+  const articlePhysicalHeight = Math.round(articleHeight * scale);
+  const exceedsLimit = articleHeight > safeCssHeight;
+  elements.longModeLimitNote.classList.toggle('warning', exceedsLimit);
+  elements.longModeLimitNote.textContent = exceedsLimit
+    ? `目前內容約 ${physicalWidth.toLocaleString()} × ${articlePhysicalHeight.toLocaleString()} px，已超過單張安全上限 ${physicalWidth.toLocaleString()} × ${safePhysicalHeight.toLocaleString()} px；輸出時會自動分張，每張依實際內容高度收尾。`
+    : `單張長圖安全上限：約 ${physicalWidth.toLocaleString()} × ${safePhysicalHeight.toLocaleString()} px。上限會依畫布寬度與輸出倍率調整，超過時自動分張。`;
 }
 
 function persistState() {
@@ -1067,8 +1089,12 @@ function buildPaginatedCards(pageHeight, compactPages) {
   }
 
   if (compactPages) {
-    pages.forEach(({ card, body }) => {
-      const compactHeight = Math.ceil(body.scrollHeight + state.settings.paddingTop + state.settings.paddingBottom);
+    pages.forEach(({ card }) => {
+      card.style.height = 'auto';
+      card.style.minHeight = '0';
+      card.style.maxHeight = 'none';
+      delete card.dataset.captureHeight;
+      const compactHeight = Math.max(1, measureCaptureHeight(card));
       card.style.height = `${compactHeight}px`;
       card.style.minHeight = `${compactHeight}px`;
       card.style.maxHeight = `${compactHeight}px`;
@@ -1132,7 +1158,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=130')
+    captureStylesPromise = fetch('./capture-styles.css?v=131')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
