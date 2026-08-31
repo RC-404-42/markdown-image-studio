@@ -1093,12 +1093,8 @@ function buildPaginatedCards(pageHeight, compactPages) {
       card.style.height = 'auto';
       card.style.minHeight = '0';
       card.style.maxHeight = 'none';
-      delete card.dataset.captureHeight;
-      const compactHeight = Math.max(1, measureCaptureHeight(card));
-      card.style.height = `${compactHeight}px`;
-      card.style.minHeight = `${compactHeight}px`;
-      card.style.maxHeight = `${compactHeight}px`;
-      card.dataset.captureHeight = String(compactHeight);
+      card.removeAttribute('data-capture-height');
+      card.dataset.autoTrimHeight = 'true';
     });
   }
 
@@ -1158,7 +1154,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=131')
+    captureStylesPromise = fetch('./capture-styles.css?v=132')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -1274,7 +1270,9 @@ function cropCanvasHeight(sourceCanvas, targetHeight) {
 async function captureCard(card) {
   const captureCss = await loadCaptureStyles();
   const width = state.settings.width;
-  const fixedPageHeight = Number(card.dataset.captureHeight || 0);
+  const requestedPageHeight = Number(card.dataset.captureHeight || 0);
+  const shouldTrimHeight = card.dataset.autoTrimHeight === 'true' || !requestedPageHeight;
+  const fixedPageHeight = shouldTrimHeight ? 0 : requestedPageHeight;
   const captureToken = `capture-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   card.dataset.captureToken = captureToken;
@@ -1337,12 +1335,12 @@ async function captureCard(card) {
         clonedCard.style.inset = 'auto';
         clonedCard.style.margin = '0';
         clonedCard.style.width = `${width}px`;
-        clonedCard.style.height = `${height}px`;
-        clonedCard.style.minHeight = `${height}px`;
-        clonedCard.style.maxHeight = `${height}px`;
+        clonedCard.style.height = shouldTrimHeight ? 'auto' : `${height}px`;
+        clonedCard.style.minHeight = shouldTrimHeight ? '0' : `${height}px`;
+        clonedCard.style.maxHeight = shouldTrimHeight ? 'none' : `${height}px`;
         clonedCard.style.transform = 'none';
         clonedCard.style.boxShadow = 'none';
-        clonedCard.style.overflow = 'hidden';
+        clonedCard.style.overflow = shouldTrimHeight ? 'visible' : 'hidden';
 
         if (state.customFontDataUrl && state.customFontFamily) {
           const ClonedFontFace = clonedDocument.defaultView.FontFace;
@@ -1353,7 +1351,7 @@ async function captureCard(card) {
         await clonedDocument.fonts.ready;
         clonedCard.getBoundingClientRect();
 
-        if (!fixedPageHeight) {
+        if (shouldTrimHeight) {
           const clonedArticle = clonedCard.querySelector('.markdown-body');
           if (clonedArticle) {
             const cardRect = clonedCard.getBoundingClientRect();
@@ -1364,12 +1362,16 @@ async function captureCard(card) {
               1,
               Math.ceil(articleRect.bottom - cardRect.top + paddingBottom),
             );
+            clonedCard.style.height = `${cloneMeasuredHeight}px`;
+            clonedCard.style.minHeight = `${cloneMeasuredHeight}px`;
+            clonedCard.style.maxHeight = `${cloneMeasuredHeight}px`;
+            clonedCard.style.overflow = 'hidden';
           }
         }
       },
     });
 
-    if (!fixedPageHeight) {
+    if (shouldTrimHeight) {
       const targetHeight = Math.min(
         canvas.height,
         Math.max(1, Math.ceil(cloneMeasuredHeight * state.settings.scale)),
