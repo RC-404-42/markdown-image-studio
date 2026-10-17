@@ -25,3 +25,8 @@ MIT License — https://github.com/yorickshan/html2canvas-pro
 highlight.js
 Copyright (c) 2006 Ivan Sagalaev
 BSD 3-Clause License — https://github.com/highlightjs/highlight.js
+Online font options (not bundled): Comic Neue, Patrick Hand, Kalam, Huninn.
+Served on demand by Google Fonts (https://fonts.google.com/), under their
+respective SIL Open Font License distributions. Font files are not included
+in this archive. No manuscript text is included in font request URLs.
+

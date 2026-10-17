@@ -37,6 +37,11 @@ const DEFAULT_SETTINGS = Object.freeze({
   fontFamily: '"Microsoft JhengHei", sans-serif',
   latinFont: 'Arial, Helvetica',
   smartTypography: false,
+  inlineFont: '',
+  inlineLatinFont: '',
+  blockFont: '__legacy__',
+  blockLatinFont: '',
+  codeHighlight: true,
   codeFont: '"Cascadia Code", "Microsoft JhengHei", monospace',
   fontSize: 20,
   lineHeight: 1.75,
@@ -209,12 +214,180 @@ const state = {
   customPalettes: loadCustomPalettes(),
 };
 
+// Online fonts are requested only after a selected setting references them.
+// No text= parameter: manuscript content is never sent to the font provider.
+const WEB_FONTS = {
+  'web:Comic Neue': { family: 'Comic Neue', label: 'Comic Neue', request: 'Comic+Neue:wght@400;700', sample: 'Abc 0123' },
+  'web:Patrick Hand': { family: 'Patrick Hand', label: 'Patrick Hand', request: 'Patrick+Hand', sample: 'Abc 0123' },
+  'web:Kalam': { family: 'Kalam', label: 'Kalam', request: 'Kalam:wght@400;700', sample: 'Abc 0123' },
+  'web:Huninn': { family: 'Huninn', label: '粉圓 Huninn', request: 'Huninn', sample: '中文測試 Abc 0123' },
+};
+const webFontRecords = new Map();
+let webFontStatusGeneration = 0;
+
+function resolveFontFamily(value) {
+  if (value === '__legacy__') return state.settings.codeFont;
+  if (WEB_FONTS[value]) return `"${WEB_FONTS[value].family}"`;
+  return value || '';
+}
+
+function populateTextFontControls() {
+  const mainOptions = [
+    ['', '跟隨文章字體（含文章英文字體）'],
+    ['__legacy__', '原有程式碼等寬字體'],
+    ['web:Huninn', '粉圓 Huninn（線上）'],
+    ['"Microsoft JhengHei", "PingFang TC", sans-serif', '正黑體／蘋方（裝置字體）'],
+    ['"Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif', 'Noto Sans TC（裝置字體）'],
+    ['"PMingLiU", "Songti TC", serif', '細明體／宋體（裝置字體）'],
+    ['"DFKai-SB", "BiauKai", serif', '標楷體（裝置字體）'],
+    ['Consolas, Menlo, "Microsoft JhengHei", "PingFang TC", monospace', '等寬英數＋中文備援'],
+  ];
+  const latinOptions = [
+    ['', '跟隨此區主要字體'],
+    ['web:Comic Neue', 'Comic Neue・漫畫風（線上）'],
+    ['web:Patrick Hand', 'Patrick Hand・手寫筆記（線上）'],
+    ['web:Kalam', 'Kalam・手寫筆觸（線上）'],
+    ['Arial, Helvetica', 'Arial / Helvetica'],
+    ['Georgia, "Times New Roman"', 'Georgia'],
+    ['"Times New Roman", Times', 'Times New Roman'],
+    ['Consolas, Menlo, "Courier New"', '等寬英文'],
+  ];
+  document.querySelectorAll('[data-font-role]').forEach((select) => {
+    const choices = select.dataset.fontRole === 'primary' ? mainOptions : latinOptions;
+    choices.forEach(([value, label]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      select.appendChild(option);
+    });
+  });
+  document.querySelector('#retryWebFontsButton').addEventListener('click', () => {
+    for (const [key, record] of webFontRecords) {
+      if (record.status === 'error') {
+        record.style?.remove();
+        webFontRecords.delete(key);
+      }
+    }
+    refreshWebFontStatus();
+  });
+}
+
+function combineFontFamilies(primary, latin, fallback = '') {
+  const main = resolveFontFamily(primary) || fallback;
+  const english = resolveFontFamily(latin);
+  return [english, main, primary?.startsWith('web:') ? fallback || 'sans-serif' : '']
+    .filter(Boolean).join(', ');
+}
+
+function selectedWebFontKeys() {
+  return [...new Set([
+    state.settings.fontFamily, state.settings.latinFont,
+    state.settings.inlineFont, state.settings.inlineLatinFont,
+    state.settings.blockFont, state.settings.blockLatinFont,
+  ].filter((value) => Boolean(WEB_FONTS[value])))];
+}
+
+function withFontTimeout(promise, milliseconds = 15000) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('字體載入逾時')), milliseconds); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+async function ensureWebFontStyles(key) {
+  let record = webFontRecords.get(key);
+  if (record) return record.promise;
+  record = { status: 'loading', style: null, css: '', promise: null };
+  webFontRecords.set(key, record);
+  record.promise = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(`https://fonts.googleapis.com/css2?family=${WEB_FONTS[key].request}&display=swap`, {
+        signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer',
+      });
+      if (!response.ok) throw new Error('無法下載字體樣式');
+      const css = await response.text();
+      if (!css.includes('@font-face')) throw new Error('字體服務未回傳有效字體');
+      const style = document.createElement('style');
+      style.dataset.webFont = key;
+      style.textContent = css;
+      document.head.appendChild(style);
+      record.style = style;
+      record.css = css;
+      return record;
+    } catch (error) {
+      record.status = 'error';
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
+  return record.promise;
+}
+
+async function ensureSelectedWebFonts(targetDocument = document, keys = selectedWebFontKeys()) {
+  const articleText = elements.markdownPreview.textContent || '';
+  await Promise.all(keys.map(async (key) => {
+    const record = await ensureWebFontStyles(key);
+    try {
+      if (targetDocument !== document && !targetDocument.querySelector(`style[data-web-font="${key}"]`)) {
+        const style = targetDocument.createElement('style');
+        style.dataset.webFont = key;
+        style.textContent = record.css;
+        targetDocument.head.appendChild(style);
+      }
+      // FontFaceSet loads only the unicode-range subsets needed for this text.
+      // The text stays in this browser; it is not part of any request URL.
+      const sample = WEB_FONTS[key].sample + articleText;
+      const family = WEB_FONTS[key].family;
+      const faces = await withFontTimeout(Promise.all([
+        targetDocument.fonts.load(`400 20px "${family}"`, sample),
+        targetDocument.fonts.load(`700 20px "${family}"`, sample),
+      ]));
+      if (!faces[0].length) throw new Error('瀏覽器未能套用字體');
+      record.status = 'ready';
+    } catch (error) {
+      record.status = 'error';
+      throw new Error(`${WEB_FONTS[key].label} 載入失敗：請檢查網路並按「重試」，或改選裝置字體後輸出。`);
+    }
+  }));
+}
+
+async function refreshWebFontStatus() {
+  const note = document.querySelector('#webFontStatus');
+  if (!note) return;
+  const generation = ++webFontStatusGeneration;
+  const keys = selectedWebFontKeys();
+  const retry = document.querySelector('#retryWebFontsButton');
+  retry.hidden = true;
+  note.classList.remove('warning');
+  if (!keys.length) {
+    note.textContent = '目前使用裝置字體，未要求載入線上字體。';
+    return;
+  }
+  note.textContent = `正在載入線上字體：${keys.map((key) => WEB_FONTS[key].label).join('、')}…`;
+  try {
+    await ensureSelectedWebFonts(document, keys);
+    if (generation !== webFontStatusGeneration) return;
+    note.textContent = `線上字體已就緒：${keys.map((key) => WEB_FONTS[key].label).join('、')}。離線可用性取決於瀏覽器快取。`;
+    requestAnimationFrame(updatePreviewGeometry);
+  } catch {
+    if (generation !== webFontStatusGeneration) return;
+    note.classList.add('warning');
+    note.textContent = '部分線上字體載入失敗，預覽暫用備援字體；請重試或改選裝置字體。未就緒前會暫停圖片輸出，避免成品字形不符。';
+    retry.hidden = false;
+  }
+}
+
 const md = markdownit({
   html: false,
   linkify: true,
   typographer: state.settings.smartTypography,
   breaks: state.settings.softBreaks,
   highlight(code, language) {
+    if (!state.settings.codeHighlight) return md.utils.escapeHtml(code);
     try {
       if (language && hljs.getLanguage(language)) {
         return hljs.highlight(code, { language, ignoreIllegals: true }).value;
@@ -601,11 +774,11 @@ function applySettings() {
   card.style.setProperty('--article-muted-bg', mixColors(settings.mutedColor, settings.backgroundColor, .05));
   // Latin-only families take precedence for Latin glyphs; missing CJK glyphs
   // fall back to the user's article font. Code keeps its own font stack.
-  const articleFont = settings.latinFont
-    ? `${settings.latinFont}, ${settings.fontFamily}`
-    : settings.fontFamily;
+  const articleFont = combineFontFamilies(settings.fontFamily, settings.latinFont);
   card.style.setProperty('--article-font', articleFont);
   card.style.setProperty('--article-code-font', settings.codeFont);
+  card.style.setProperty('--article-inline-font', combineFontFamilies(settings.inlineFont, settings.inlineLatinFont, articleFont));
+  card.style.setProperty('--article-block-font', combineFontFamilies(settings.blockFont, settings.blockLatinFont, articleFont));
   card.style.setProperty('--article-size', `${settings.fontSize}px`);
   card.style.setProperty('--article-line-height', settings.lineHeight);
   card.style.setProperty('--article-letter-spacing', `${settings.letterSpacing}px`);
@@ -621,6 +794,7 @@ function applySettings() {
   card.style.setProperty('--h4-size', `${settings.fontSize * 1.08 * settings.headingScale}px`);
 
   syncControls();
+  refreshWebFontStatus();
   requestAnimationFrame(updatePreviewGeometry);
 }
 
@@ -688,6 +862,7 @@ function renderMarkdown() {
   enhanceTaskLists(elements.markdownPreview);
   enhancePageBreaks(elements.markdownPreview);
   enhanceRemoteImages(elements.markdownPreview);
+  refreshWebFontStatus();
 
   const characterCount = state.text.replace(/\s/g, '').length;
   const lineCount = state.text ? state.text.split('\n').length : 0;
@@ -757,8 +932,8 @@ function persistState() {
 function queueRender(reparse = true) {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(() => {
+    applySettings();
     if (reparse) renderMarkdown();
-    else applySettings();
   }, 55);
   persistState();
 }
@@ -792,7 +967,7 @@ function handleSettingInput(event) {
   }
 
   syncControls();
-  queueRender(setting === 'softBreaks' || setting === 'smartTypography');
+  queueRender(['softBreaks', 'smartTypography', 'codeHighlight'].includes(setting));
 }
 
 function insertAround(prefix, suffix, placeholder) {
@@ -1161,7 +1336,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=140')
+    captureStylesPromise = fetch('./capture-styles.css?v=141')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -1355,6 +1530,7 @@ async function captureCard(card) {
           await clonedFont.load();
           clonedDocument.fonts.add(clonedFont);
         }
+        await ensureSelectedWebFonts(clonedDocument);
         await clonedDocument.fonts.ready;
         clonedCard.getBoundingClientRect();
 
@@ -1405,6 +1581,7 @@ async function exportImages() {
   setStatus('正在整理字體、圖片與分頁…');
 
   try {
+    await ensureSelectedWebFonts();
     await document.fonts.ready;
     await waitForImages(elements.exportCard);
     const cards = buildCaptureCards();
@@ -1716,7 +1893,8 @@ document.querySelectorAll('[data-custom-palette-clear]').forEach((button) => {
 
 document.querySelector('#resetLayoutButton').addEventListener('click', () => {
   [
-    'fontFamily', 'latinFont', 'smartTypography', 'codeFont', 'fontSize', 'lineHeight', 'letterSpacing',
+    'fontFamily', 'latinFont', 'smartTypography', 'inlineFont', 'inlineLatinFont',
+    'blockFont', 'blockLatinFont', 'codeHighlight', 'codeFont', 'fontSize', 'lineHeight', 'letterSpacing',
     'paragraphSpacing', 'headingScale', 'firstLineIndent', 'textAlign', 'codeWrap',
     'softBreaks', 'width', 'radius', 'paddingLinked', 'paddingTop', 'paddingRight',
     'paddingBottom', 'paddingLeft', 'previewZoom',
@@ -1773,6 +1951,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+populateTextFontControls();
 elements.markdownInput.value = state.text;
 resetEditorHistory();
 syncControls();

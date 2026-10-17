@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data: blob: https:; font-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; img-src 'self' data: blob: https:; font-src 'self' data: blob: https://fonts.gstatic.com; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0e16" />
@@ -15,8 +15,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="stylesheet" href="./highlight.css?v=140" />
-    <link rel="stylesheet" href="./styles.css?v=140" />
+    <link rel="stylesheet" href="./highlight.css?v=141" />
+    <link rel="stylesheet" href="./styles.css?v=141" />
   </head>
   <body>
     <header class="app-header">
@@ -129,6 +129,7 @@
             <label for="fontFamily">文章／中文主要字體</label>
             <select id="fontFamily" data-setting="fontFamily">
               <optgroup label="繁體中文">
+                <option value="web:Huninn">粉圓 Huninn（線上）</option>
                 <option value='"Microsoft JhengHei", sans-serif'>微軟正黑體</option>
                 <option value='"Noto Sans TC", sans-serif'>Noto Sans TC</option>
                 <option value='"PingFang TC", sans-serif'>蘋方－繁</option>
@@ -161,6 +162,11 @@
             <label for="latinFont">英文／數字字體</label>
             <select id="latinFont" data-setting="latinFont">
               <option value="">跟隨文章主要字體</option>
+              <optgroup label="線上字體（選到才載入）">
+                <option value="web:Comic Neue">Comic Neue・漫畫風</option>
+                <option value="web:Patrick Hand">Patrick Hand・手寫筆記</option>
+                <option value="web:Kalam">Kalam・手寫筆觸</option>
+              </optgroup>
               <option value="Arial, Helvetica">Arial / Helvetica（預設）</option>
               <option value='"Segoe UI", Helvetica, Arial'>Modern Sans</option>
               <option value='Georgia, "Times New Roman"'>Georgia Book</option>
@@ -169,19 +175,31 @@
               <option value='"Trebuchet MS", Arial'>Trebuchet Humanist</option>
               <option value='Consolas, Menlo, "Courier New"'>等寬英文</option>
             </select>
-            <p class="hint">英文、數字與西文標點優先使用這組字體；中文等缺字回到主要字體。字體須已安裝於裝置，否則依序使用備援；不會連網下載字體。</p>
+            <p class="hint">英文、數字與西文標點優先使用這組字體，中文等缺字回到主要字體。「線上」字體選到才下載；其他字體須已安裝於裝置。</p>
           </div>
 
           <label class="toggle-control"><span>智慧標點<small>預設關閉，保留原稿的 ' 與 &quot;；開啟後會自動換成彎引號等排印符號，原稿不變。</small></span><input type="checkbox" data-setting="smartTypography" /></label>
 
           <div class="control-block">
-            <label for="codeFont">程式碼字體</label>
-            <select id="codeFont" data-setting="codeFont">
-              <option value='"Cascadia Code", "Microsoft JhengHei", monospace'>Cascadia Code</option>
-              <option value='Consolas, "Microsoft JhengHei", monospace'>Consolas</option>
-              <option value='"Courier New", monospace'>Courier New</option>
-              <option value='monospace'>系統等寬字體</option>
-            </select>
+            <label for="inlineFont">行內標記・主要／中文字體</label>
+            <select id="inlineFont" data-setting="inlineFont" data-font-role="primary"></select>
+            <label for="inlineLatinFont">行內標記・英文／數字字體</label>
+            <select id="inlineLatinFont" data-setting="inlineLatinFont" data-font-role="latin"></select>
+            <p class="hint">控制單個反引號包住的文字，例如 `重點標記`；不改動原稿。</p>
+          </div>
+
+          <div class="control-block">
+            <label for="blockFont">區塊文字・主要／中文字體</label>
+            <select id="blockFont" data-setting="blockFont" data-font-role="primary"></select>
+            <label for="blockLatinFont">區塊文字・英文／數字字體</label>
+            <select id="blockLatinFont" data-setting="blockLatinFont" data-font-role="latin"></select>
+            <p class="hint">控制三個反引號或縮排形成的區塊；排中文、對話可用圓體，排程式或對齊圖表建議用等寬字體。</p>
+          </div>
+          <label class="toggle-control"><span>程式碼上色<small>關閉時不自動辨識語言、不套用語法顏色，區塊使用統一文字色。</small></span><input type="checkbox" data-setting="codeHighlight" /></label>
+          <div class="web-font-notice">
+            <p id="webFontStatus" class="hint" role="status" aria-live="polite"></p>
+            <button id="retryWebFontsButton" class="secondary-small" type="button" hidden>重試載入字體</button>
+            <p class="hint">線上字體由 Google Fonts 提供，會產生一般連線資訊，但不會把文章送去字體服務。尚未載入或快取失效時需要網路。</p>
           </div>
 
           <div class="slider-control"><label>基礎字級 <output data-output="fontSize"></output></label><div><input type="range" min="12" max="48" step="1" data-setting="fontSize" /><input type="number" min="12" max="48" step="1" data-setting="fontSize" /></div></div>
@@ -317,7 +335,7 @@
       <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
     </div>
 
-    <script src="./boot.js?v=140"></script>
-    <script src="./app.bundle.js?v=140"></script>
+    <script src="./boot.js?v=141"></script>
+    <script src="./app.bundle.js?v=141"></script>
   </body>
 </html>
