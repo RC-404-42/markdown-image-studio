@@ -15,8 +15,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="stylesheet" href="./highlight.css?v=132" />
-    <link rel="stylesheet" href="./styles.css?v=132" />
+    <link rel="stylesheet" href="./highlight.css?v=140" />
+    <link rel="stylesheet" href="./styles.css?v=140" />
   </head>
   <body>
     <header class="app-header">
@@ -126,7 +126,7 @@
           <div class="section-heading"><div><h2>字體與節奏</h2><p>細調每一行文字的呼吸感</p></div></div>
 
           <div class="control-block">
-            <label for="fontFamily">文章字體</label>
+            <label for="fontFamily">文章／中文主要字體</label>
             <select id="fontFamily" data-setting="fontFamily">
               <optgroup label="繁體中文">
                 <option value='"Microsoft JhengHei", sans-serif'>微軟正黑體</option>
@@ -156,6 +156,23 @@
               <span id="customFontLabel" class="hint">TTF / OTF / WOFF</span>
             </div>
           </div>
+
+          <div class="control-block">
+            <label for="latinFont">英文／數字字體</label>
+            <select id="latinFont" data-setting="latinFont">
+              <option value="">跟隨文章主要字體</option>
+              <option value="Arial, Helvetica">Arial / Helvetica（預設）</option>
+              <option value='"Segoe UI", Helvetica, Arial'>Modern Sans</option>
+              <option value='Georgia, "Times New Roman"'>Georgia Book</option>
+              <option value='"Times New Roman", Times'>Times New Roman</option>
+              <option value='Garamond, "Palatino Linotype", "Book Antiqua", Palatino, Georgia'>Garamond / Palatino</option>
+              <option value='"Trebuchet MS", Arial'>Trebuchet Humanist</option>
+              <option value='Consolas, Menlo, "Courier New"'>等寬英文</option>
+            </select>
+            <p class="hint">英文、數字與西文標點優先使用這組字體；中文等缺字回到主要字體。字體須已安裝於裝置，否則依序使用備援；不會連網下載字體。</p>
+          </div>
+
+          <label class="toggle-control"><span>智慧標點<small>預設關閉，保留原稿的 ' 與 &quot;；開啟後會自動換成彎引號等排印符號，原稿不變。</small></span><input type="checkbox" data-setting="smartTypography" /></label>
 
           <div class="control-block">
             <label for="codeFont">程式碼字體</label>
@@ -300,7 +317,7 @@
       <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
     </div>
 
-    <script src="./boot.js?v=132"></script>
-    <script src="./app.bundle.js?v=132"></script>
+    <script src="./boot.js?v=140"></script>
+    <script src="./app.bundle.js?v=140"></script>
   </body>
 </html>

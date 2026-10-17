@@ -35,6 +35,8 @@ await exportAsImage(article, { scale: 2 });
 
 const DEFAULT_SETTINGS = Object.freeze({
   fontFamily: '"Microsoft JhengHei", sans-serif',
+  latinFont: 'Arial, Helvetica',
+  smartTypography: false,
   codeFont: '"Cascadia Code", "Microsoft JhengHei", monospace',
   fontSize: 20,
   lineHeight: 1.75,
@@ -210,7 +212,7 @@ const state = {
 const md = markdownit({
   html: false,
   linkify: true,
-  typographer: true,
+  typographer: state.settings.smartTypography,
   breaks: state.settings.softBreaks,
   highlight(code, language) {
     try {
@@ -597,7 +599,12 @@ function applySettings() {
   card.style.setProperty('--article-table-head', mixColors(settings.accentColor, settings.backgroundColor, .08));
   card.style.setProperty('--article-row-alt', mixColors(settings.mutedColor, settings.backgroundColor, .04));
   card.style.setProperty('--article-muted-bg', mixColors(settings.mutedColor, settings.backgroundColor, .05));
-  card.style.setProperty('--article-font', settings.fontFamily);
+  // Latin-only families take precedence for Latin glyphs; missing CJK glyphs
+  // fall back to the user's article font. Code keeps its own font stack.
+  const articleFont = settings.latinFont
+    ? `${settings.latinFont}, ${settings.fontFamily}`
+    : settings.fontFamily;
+  card.style.setProperty('--article-font', articleFont);
   card.style.setProperty('--article-code-font', settings.codeFont);
   card.style.setProperty('--article-size', `${settings.fontSize}px`);
   card.style.setProperty('--article-line-height', settings.lineHeight);
@@ -671,7 +678,7 @@ function enhanceRemoteImages(root) {
 }
 
 function renderMarkdown() {
-  md.set({ breaks: state.settings.softBreaks });
+  md.set({ breaks: state.settings.softBreaks, typographer: state.settings.smartTypography });
   const rendered = md.render(state.text);
   elements.markdownPreview.innerHTML = DOMPurify.sanitize(rendered, {
     USE_PROFILES: { html: true },
@@ -785,7 +792,7 @@ function handleSettingInput(event) {
   }
 
   syncControls();
-  queueRender(setting === 'softBreaks');
+  queueRender(setting === 'softBreaks' || setting === 'smartTypography');
 }
 
 function insertAround(prefix, suffix, placeholder) {
@@ -1154,7 +1161,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=132')
+    captureStylesPromise = fetch('./capture-styles.css?v=140')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
@@ -1709,7 +1716,7 @@ document.querySelectorAll('[data-custom-palette-clear]').forEach((button) => {
 
 document.querySelector('#resetLayoutButton').addEventListener('click', () => {
   [
-    'fontFamily', 'codeFont', 'fontSize', 'lineHeight', 'letterSpacing',
+    'fontFamily', 'latinFont', 'smartTypography', 'codeFont', 'fontSize', 'lineHeight', 'letterSpacing',
     'paragraphSpacing', 'headingScale', 'firstLineIndent', 'textAlign', 'codeWrap',
     'softBreaks', 'width', 'radius', 'paddingLinked', 'paddingTop', 'paddingRight',
     'paddingBottom', 'paddingLeft', 'previewZoom',
