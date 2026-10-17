@@ -15,8 +15,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="stylesheet" href="./highlight.css?v=143" />
-    <link rel="stylesheet" href="./styles.css?v=143" />
+    <link rel="stylesheet" href="./highlight.css?v=144" />
+    <link rel="stylesheet" href="./styles.css?v=144" />
   </head>
   <body>
     <header class="app-header">
@@ -129,7 +129,7 @@
             <label for="fontFamily">文章／中文主要字體</label>
             <select id="fontFamily" data-setting="fontFamily">
               <optgroup label="繁體中文">
-                <option value="web:Huninn">粉圓 Huninn（隨網站提供）</option>
+                <option value="web:Huninn">粉圓 Huninn</option>
                 <option value='"Microsoft JhengHei", sans-serif'>微軟正黑體</option>
                 <option value='"Noto Sans TC", sans-serif'>Noto Sans TC</option>
                 <option value='"PingFang TC", sans-serif'>蘋方－繁</option>
@@ -162,11 +162,9 @@
             <label for="latinFont">英文／數字字體</label>
             <select id="latinFont" data-setting="latinFont">
               <option value="">跟隨文章主要字體</option>
-              <optgroup label="網站字體（選到才載入）">
                 <option value="web:Comic Neue">Comic Neue・漫畫風</option>
                 <option value="web:Patrick Hand">Patrick Hand・手寫筆記</option>
                 <option value="web:Kalam">Kalam・手寫筆觸</option>
-              </optgroup>
               <option value="Arial, Helvetica">Arial / Helvetica（預設）</option>
               <option value='"Segoe UI", Helvetica, Arial'>Modern Sans</option>
               <option value='Georgia, "Times New Roman"'>Georgia Book</option>
@@ -175,7 +173,7 @@
               <option value='"Trebuchet MS", Arial'>Trebuchet Humanist</option>
               <option value='Consolas, Menlo, "Courier New"'>等寬英文</option>
             </select>
-            <p class="hint">英文、數字與西文標點優先使用這組字體，中文等缺字回到主要字體。「線上」字體選到才下載；其他字體須已安裝於裝置。</p>
+            <p class="hint">英文、數字與西文標點優先使用這組字體，中文等缺字回到主要字體。</p>
           </div>
 
           <label class="toggle-control"><span>智慧標點<small>預設關閉，保留原稿的 ' 與 &quot;；開啟後會自動換成彎引號等排印符號，原稿不變。</small></span><input type="checkbox" data-setting="smartTypography" /></label>
@@ -199,7 +197,6 @@
           <div class="web-font-notice">
             <p id="webFontStatus" class="hint" role="status" aria-live="polite"></p>
             <button id="retryWebFontsButton" class="secondary-small" type="button" hidden>重試載入字體</button>
-            <p class="hint">網站字體隨部署包提供，選到才由本站載入；不連接外部字體服務，也不會傳送文章內容。首次載入後可由瀏覽器快取。</p>
           </div>
 
           <div class="slider-control"><label>基礎字級 <output data-output="fontSize"></output></label><div><input type="range" min="12" max="48" step="1" data-setting="fontSize" /><input type="number" min="12" max="48" step="1" data-setting="fontSize" /></div></div>
@@ -335,7 +332,7 @@
       <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
     </div>
 
-    <script src="./boot.js?v=143"></script>
-    <script src="./app.bundle.js?v=143"></script>
+    <script src="./boot.js?v=144"></script>
+    <script src="./app.bundle.js?v=144"></script>
   </body>
 </html>

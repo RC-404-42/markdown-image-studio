@@ -214,22 +214,13 @@ const state = {
   customPalettes: loadCustomPalettes(),
 };
 
-// Online fonts are requested only after a selected setting references them.
-// No text= parameter: manuscript content is never sent to the font provider.
+// Stable setting keys preserve drafts from earlier releases.
 const WEB_FONTS = {
   'web:Comic Neue': { family: 'Comic Neue', label: 'Comic Neue', weights: [400, 700], sample: 'Abc 0123' },
   'web:Patrick Hand': { family: 'Patrick Hand', label: 'Patrick Hand', weights: [400], sample: 'Abc 0123' },
   'web:Kalam': { family: 'Kalam', label: 'Kalam', weights: [400, 700], sample: 'Abc 0123' },
   'web:Huninn': { family: 'Huninn', label: '粉圓 Huninn', weights: [400], sample: '中文測試 Abc 0123' },
 };
-const LOCAL_FONT_FACE_CSS = `
-@font-face { font-family: 'Comic Neue'; font-style: normal; font-weight: 400; font-display: swap; src: url('./fonts/ComicNeue-Regular.ttf') format('truetype'); }
-@font-face { font-family: 'Comic Neue'; font-style: normal; font-weight: 700; font-display: swap; src: url('./fonts/ComicNeue-Bold.ttf') format('truetype'); }
-@font-face { font-family: 'Patrick Hand'; font-style: normal; font-weight: 400; font-display: swap; src: url('./fonts/PatrickHand-Regular.ttf') format('truetype'); }
-@font-face { font-family: 'Kalam'; font-style: normal; font-weight: 400; font-display: swap; src: url('./fonts/Kalam-Regular.ttf') format('truetype'); }
-@font-face { font-family: 'Kalam'; font-style: normal; font-weight: 700; font-display: swap; src: url('./fonts/Kalam-Bold.ttf') format('truetype'); }
-@font-face { font-family: 'Huninn'; font-style: normal; font-weight: 400; font-display: swap; src: url('./fonts/Huninn-Regular.ttf') format('truetype'); }
-`;
 const webFontRecords = new Map();
 let webFontStatusGeneration = 0;
 
@@ -243,18 +234,18 @@ function populateTextFontControls() {
   const mainOptions = [
     ['', '跟隨文章字體（含文章英文字體）'],
     ['__legacy__', '原有程式碼等寬字體'],
-    ['web:Huninn', '粉圓 Huninn（隨網站提供）'],
-    ['"Microsoft JhengHei", "PingFang TC", sans-serif', '正黑體／蘋方（裝置字體）'],
-    ['"Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif', 'Noto Sans TC（裝置字體）'],
-    ['"PMingLiU", "Songti TC", serif', '細明體／宋體（裝置字體）'],
-    ['"DFKai-SB", "BiauKai", serif', '標楷體（裝置字體）'],
+    ['web:Huninn', '粉圓 Huninn'],
+    ['"Microsoft JhengHei", "PingFang TC", sans-serif', '正黑體／蘋方'],
+    ['"Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif', 'Noto Sans TC'],
+    ['"PMingLiU", "Songti TC", serif', '細明體／宋體'],
+    ['"DFKai-SB", "BiauKai", serif', '標楷體'],
     ['Consolas, Menlo, "Microsoft JhengHei", "PingFang TC", monospace', '等寬英數＋中文備援'],
   ];
   const latinOptions = [
     ['', '跟隨此區主要字體'],
-    ['web:Comic Neue', 'Comic Neue・漫畫風（隨網站提供）'],
-    ['web:Patrick Hand', 'Patrick Hand・手寫筆記（隨網站提供）'],
-    ['web:Kalam', 'Kalam・手寫筆觸（隨網站提供）'],
+    ['web:Comic Neue', 'Comic Neue・漫畫風'],
+    ['web:Patrick Hand', 'Patrick Hand・手寫筆記'],
+    ['web:Kalam', 'Kalam・手寫筆觸'],
     ['Arial, Helvetica', 'Arial / Helvetica'],
     ['Georgia, "Times New Roman"', 'Georgia'],
     ['"Times New Roman", Times', 'Times New Roman'],
@@ -307,36 +298,55 @@ async function ensureWebFontStyles(key) {
   if (record) return record.promise;
   record = { status: 'loading', phase: 'font', errorMessage: '', promise: null };
   webFontRecords.set(key, record);
-  record.promise = Promise.resolve(record);
+  record.promise = (async () => {
+    const stem = { 'Comic Neue': 'ComicNeue', 'Patrick Hand': 'PatrickHand', Kalam: 'Kalam', Huninn: 'Huninn' }[WEB_FONTS[key].family];
+    record.buffers = await Promise.all(WEB_FONTS[key].weights.map(async (weight) => {
+      const path = `./fonts/${stem}-${weight === 700 ? 'Bold' : 'Regular'}.ttf`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30000);
+      try {
+        const response = await fetch(new URL(path, document.baseURI).href, { signal: controller.signal, credentials: 'same-origin' });
+        if (!response.ok) throw new Error(`字體檔下載失敗（HTTP ${response.status}）`);
+        return await response.arrayBuffer();
+      } catch (error) {
+        throw new Error(error.name === 'AbortError' ? '字體檔下載逾時' : error.message);
+      } finally {
+        clearTimeout(timer);
+      }
+    }));
+    record.documents = new WeakMap();
+    return record;
+  })().catch((error) => {
+    record.status = 'error';
+    record.errorMessage = error.message;
+    // A later retry must make a fresh request, rather than retain a rejected promise.
+    if (webFontRecords.get(key) === record) webFontRecords.delete(key);
+    throw error;
+  });
   return record.promise;
 }
 
-function ensureLocalFontFaces(targetDocument) {
-  if (targetDocument.querySelector('style[data-local-font-faces]')) return;
-  const style = targetDocument.createElement('style');
-  style.dataset.localFontFaces = 'true';
-  style.textContent = LOCAL_FONT_FACE_CSS;
-  targetDocument.head.appendChild(style);
-}
-
-async function waitForLocalFont(targetDocument, family, weight, sample) {
-  ensureLocalFontFaces(targetDocument);
-  const probe = targetDocument.createElement('span');
-  probe.textContent = sample;
-  probe.setAttribute('aria-hidden', 'true');
-  Object.assign(probe.style, {
-    position: 'fixed', left: '-10000px', top: '-10000px', opacity: '0',
-    fontFamily: `"${family}"`, fontWeight: String(weight), fontSize: '20px',
-  });
-  targetDocument.body.appendChild(probe);
-  try {
-    await withFontTimeout(targetDocument.fonts.ready, 30000, '網站字體檔載入逾時');
-    if (!targetDocument.fonts.check(`${weight} 20px "${family}"`, sample)) {
-      throw new Error('瀏覽器未能套用網站字體檔');
-    }
-  } finally {
-    probe.remove();
-  }
+async function registerLocalFont(targetDocument, key, record) {
+  if (record.documents.has(targetDocument)) return record.documents.get(targetDocument);
+  const pending = (async () => {
+    const FontFaceConstructor = targetDocument.defaultView?.FontFace || FontFace;
+    const faces = await Promise.all(WEB_FONTS[key].weights.map(async (weight, index) => {
+      const face = new FontFaceConstructor(WEB_FONTS[key].family, record.buffers[index].slice(0), {
+        style: 'normal', weight: String(weight), display: 'swap',
+      });
+      await withFontTimeout(face.load(), 30000, '字體解碼逾時');
+      if (face.status !== 'loaded') throw new Error('字體解碼失敗');
+      return face;
+    }));
+    faces.forEach((face) => targetDocument.fonts.add(face));
+    // Flush layout after registration, before measuring or capturing any text.
+    targetDocument.body.getBoundingClientRect();
+    await withFontTimeout(targetDocument.fonts.ready);
+    return faces;
+  })();
+  record.documents.set(targetDocument, pending);
+  pending.catch(() => record.documents.delete(targetDocument));
+  return pending;
 }
 
 async function ensureSelectedWebFonts(targetDocument = document, keys = selectedWebFontKeys()) {
@@ -345,11 +355,7 @@ async function ensureSelectedWebFonts(targetDocument = document, keys = selected
     try {
       record = await ensureWebFontStyles(key);
       record.phase = 'font';
-      const sample = WEB_FONTS[key].sample;
-      const family = WEB_FONTS[key].family;
-      await Promise.all(WEB_FONTS[key].weights.map((weight) => (
-        waitForLocalFont(targetDocument, family, weight, sample)
-      )));
+      await registerLocalFont(targetDocument, key, record);
       record.status = 'ready';
     } catch (error) {
       record ||= webFontRecords.get(key);
@@ -371,23 +377,23 @@ async function refreshWebFontStatus() {
   retry.hidden = true;
   note.classList.remove('warning');
   if (!keys.length) {
-    note.textContent = '目前使用裝置字體，未要求載入網站字體。';
+    note.textContent = '';
     return;
   }
-  note.textContent = `正在載入網站字體：${keys.map((key) => WEB_FONTS[key].label).join('、')}…`;
+  note.textContent = `正在準備字體：${keys.map((key) => WEB_FONTS[key].label).join('、')}…`;
   try {
     await ensureSelectedWebFonts(document, keys);
     if (generation !== webFontStatusGeneration) return;
-    note.textContent = `網站字體已就緒：${keys.map((key) => WEB_FONTS[key].label).join('、')}。載入後可由瀏覽器快取離線使用。`;
+    note.textContent = '';
     requestAnimationFrame(updatePreviewGeometry);
-  } catch {
+  } catch (error) {
     if (generation !== webFontStatusGeneration) return;
     note.classList.add('warning');
     const details = keys.map((key) => {
       const record = webFontRecords.get(key);
       return record?.status === 'error' ? `${WEB_FONTS[key].label}：${record.errorMessage}` : null;
     }).filter(Boolean).join('；');
-    note.textContent = `網站字體載入失敗（${details || '瀏覽器未回報原因'}）。預覽暫用備援字體；請重試或改選裝置字體。未就緒前會暫停圖片輸出。`;
+    note.textContent = `字體準備失敗（${details || error.message || '瀏覽器未回報原因'}）。請重試或改選其他字體後輸出。`;
     retry.hidden = false;
   }
 }
@@ -1347,7 +1353,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=143')
+    captureStylesPromise = fetch('./capture-styles.css?v=144')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
