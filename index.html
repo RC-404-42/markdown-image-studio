@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data: blob: https:; font-src 'self' data: blob: https://fonts.gstatic.com; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; img-src 'self' data: blob: https:; font-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0e16" />
@@ -15,8 +15,8 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-192.png" sizes="192x192" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="stylesheet" href="./highlight.css?v=142" />
-    <link rel="stylesheet" href="./styles.css?v=142" />
+    <link rel="stylesheet" href="./highlight.css?v=143" />
+    <link rel="stylesheet" href="./styles.css?v=143" />
   </head>
   <body>
     <header class="app-header">
@@ -129,7 +129,7 @@
             <label for="fontFamily">文章／中文主要字體</label>
             <select id="fontFamily" data-setting="fontFamily">
               <optgroup label="繁體中文">
-                <option value="web:Huninn">粉圓 Huninn（線上）</option>
+                <option value="web:Huninn">粉圓 Huninn（隨網站提供）</option>
                 <option value='"Microsoft JhengHei", sans-serif'>微軟正黑體</option>
                 <option value='"Noto Sans TC", sans-serif'>Noto Sans TC</option>
                 <option value='"PingFang TC", sans-serif'>蘋方－繁</option>
@@ -162,7 +162,7 @@
             <label for="latinFont">英文／數字字體</label>
             <select id="latinFont" data-setting="latinFont">
               <option value="">跟隨文章主要字體</option>
-              <optgroup label="線上字體（選到才載入）">
+              <optgroup label="網站字體（選到才載入）">
                 <option value="web:Comic Neue">Comic Neue・漫畫風</option>
                 <option value="web:Patrick Hand">Patrick Hand・手寫筆記</option>
                 <option value="web:Kalam">Kalam・手寫筆觸</option>
@@ -199,7 +199,7 @@
           <div class="web-font-notice">
             <p id="webFontStatus" class="hint" role="status" aria-live="polite"></p>
             <button id="retryWebFontsButton" class="secondary-small" type="button" hidden>重試載入字體</button>
-            <p class="hint">線上字體由 Google Fonts 提供，會產生一般連線資訊，但不會把文章送去字體服務。尚未載入或快取失效時需要網路。</p>
+            <p class="hint">網站字體隨部署包提供，選到才由本站載入；不連接外部字體服務，也不會傳送文章內容。首次載入後可由瀏覽器快取。</p>
           </div>
 
           <div class="slider-control"><label>基礎字級 <output data-output="fontSize"></output></label><div><input type="range" min="12" max="48" step="1" data-setting="fontSize" /><input type="number" min="12" max="48" step="1" data-setting="fontSize" /></div></div>
@@ -335,7 +335,7 @@
       <span>請確認已把修正版 ZIP 裡的所有檔案上傳到 Repository 最外層，然後重新整理。</span>
     </div>
 
-    <script src="./boot.js?v=142"></script>
-    <script src="./app.bundle.js?v=142"></script>
+    <script src="./boot.js?v=143"></script>
+    <script src="./app.bundle.js?v=143"></script>
   </body>
 </html>
