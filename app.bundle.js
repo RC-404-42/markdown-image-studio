@@ -1514,10 +1514,10 @@ const state = {
 // Online fonts are requested only after a selected setting references them.
 // No text= parameter: manuscript content is never sent to the font provider.
 const WEB_FONTS = {
-  'web:Comic Neue': { family: 'Comic Neue', label: 'Comic Neue', request: 'Comic+Neue:wght@400;700', sample: 'Abc 0123' },
-  'web:Patrick Hand': { family: 'Patrick Hand', label: 'Patrick Hand', request: 'Patrick+Hand', sample: 'Abc 0123' },
-  'web:Kalam': { family: 'Kalam', label: 'Kalam', request: 'Kalam:wght@400;700', sample: 'Abc 0123' },
-  'web:Huninn': { family: 'Huninn', label: '粉圓 Huninn', request: 'Huninn', sample: '中文測試 Abc 0123' },
+  'web:Comic Neue': { family: 'Comic Neue', label: 'Comic Neue', request: 'Comic Neue:wght@400;700', weights: [400, 700], sample: 'Abc 0123' },
+  'web:Patrick Hand': { family: 'Patrick Hand', label: 'Patrick Hand', request: 'Patrick Hand', weights: [400], sample: 'Abc 0123' },
+  'web:Kalam': { family: 'Kalam', label: 'Kalam', request: 'Kalam:wght@400;700', weights: [400, 700], sample: 'Abc 0123' },
+  'web:Huninn': { family: 'Huninn', label: '粉圓 Huninn', request: 'Huninn', weights: [400], sample: '中文測試 Abc 0123' },
 };
 const webFontRecords = new Map();
 let webFontStatusGeneration = 0;
@@ -1561,7 +1561,7 @@ function populateTextFontControls() {
   document.querySelector('#retryWebFontsButton').addEventListener('click', () => {
     for (const [key, record] of webFontRecords) {
       if (record.status === 'error') {
-        record.style?.remove();
+        record.link?.remove();
         webFontRecords.delete(key);
       }
     }
@@ -1584,41 +1584,66 @@ function selectedWebFontKeys() {
   ].filter((value) => Boolean(WEB_FONTS[value])))];
 }
 
-function withFontTimeout(promise, milliseconds = 15000) {
+function withFontTimeout(promise, milliseconds = 30000, message = '字體載入逾時') {
   let timer;
   return Promise.race([
     promise,
-    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('字體載入逾時')), milliseconds); }),
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), milliseconds); }),
   ]).finally(() => clearTimeout(timer));
+}
+
+function webFontStylesheetUrl(key) {
+  const query = new URLSearchParams({ family: WEB_FONTS[key].request, display: 'swap' });
+  return `https://fonts.googleapis.com/css2?${query}`;
+}
+
+function attachWebFontStylesheet(targetDocument, key) {
+  const existing = targetDocument.querySelector(`link[data-web-font="${key}"]`);
+  if (existing?.dataset.webFontReady === 'true') return Promise.resolve(existing);
+  if (existing) {
+    return withFontTimeout(new Promise((resolve, reject) => {
+      existing.addEventListener('load', () => {
+        existing.dataset.webFontReady = 'true';
+        resolve(existing);
+      }, { once: true });
+      existing.addEventListener('error', () => reject(new Error('字體樣式服務連線失敗')), { once: true });
+    }), 30000, '字體樣式服務連線逾時').catch((error) => {
+      existing.remove();
+      throw error;
+    });
+  }
+  let link;
+  return withFontTimeout(new Promise((resolve, reject) => {
+    link = targetDocument.createElement('link');
+    link.rel = 'stylesheet';
+    link.referrerPolicy = 'no-referrer';
+    link.dataset.webFont = key;
+    link.href = webFontStylesheetUrl(key);
+    link.addEventListener('load', () => {
+      link.dataset.webFontReady = 'true';
+      resolve(link);
+    }, { once: true });
+    link.addEventListener('error', () => reject(new Error('字體樣式服務連線失敗')), { once: true });
+    targetDocument.head.appendChild(link);
+  }), 30000, '字體樣式服務連線逾時').catch((error) => {
+    link?.remove();
+    throw error;
+  });
 }
 
 async function ensureWebFontStyles(key) {
   let record = webFontRecords.get(key);
   if (record) return record.promise;
-  record = { status: 'loading', style: null, css: '', promise: null };
+  record = { status: 'loading', link: null, phase: 'stylesheet', errorMessage: '', promise: null };
   webFontRecords.set(key, record);
   record.promise = (async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(`https://fonts.googleapis.com/css2?family=${WEB_FONTS[key].request}&display=swap`, {
-        signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer',
-      });
-      if (!response.ok) throw new Error('無法下載字體樣式');
-      const css = await response.text();
-      if (!css.includes('@font-face')) throw new Error('字體服務未回傳有效字體');
-      const style = document.createElement('style');
-      style.dataset.webFont = key;
-      style.textContent = css;
-      document.head.appendChild(style);
-      record.style = style;
-      record.css = css;
+      record.link = await attachWebFontStylesheet(document, key);
       return record;
     } catch (error) {
       record.status = 'error';
+      record.errorMessage = error.message || '字體樣式服務連線失敗';
       throw error;
-    } finally {
-      clearTimeout(timer);
     }
   })();
   return record.promise;
@@ -1627,27 +1652,27 @@ async function ensureWebFontStyles(key) {
 async function ensureSelectedWebFonts(targetDocument = document, keys = selectedWebFontKeys()) {
   const articleText = elements.markdownPreview.textContent || '';
   await Promise.all(keys.map(async (key) => {
-    const record = await ensureWebFontStyles(key);
+    let record;
     try {
-      if (targetDocument !== document && !targetDocument.querySelector(`style[data-web-font="${key}"]`)) {
-        const style = targetDocument.createElement('style');
-        style.dataset.webFont = key;
-        style.textContent = record.css;
-        targetDocument.head.appendChild(style);
-      }
+      record = await ensureWebFontStyles(key);
+      if (targetDocument !== document) await attachWebFontStylesheet(targetDocument, key);
+      record.phase = 'font';
       // FontFaceSet loads only the unicode-range subsets needed for this text.
       // The text stays in this browser; it is not part of any request URL.
       const sample = WEB_FONTS[key].sample + articleText;
       const family = WEB_FONTS[key].family;
-      const faces = await withFontTimeout(Promise.all([
-        targetDocument.fonts.load(`400 20px "${family}"`, sample),
-        targetDocument.fonts.load(`700 20px "${family}"`, sample),
-      ]));
-      if (!faces[0].length) throw new Error('瀏覽器未能套用字體');
+      const faces = await withFontTimeout(Promise.all(WEB_FONTS[key].weights.map((weight) => (
+        targetDocument.fonts.load(`${weight} 20px "${family}"`, sample)
+      ))));
+      if (faces.some((faceList) => !faceList.length)) throw new Error('瀏覽器未能套用字體檔');
       record.status = 'ready';
     } catch (error) {
-      record.status = 'error';
-      throw new Error(`${WEB_FONTS[key].label} 載入失敗：請檢查網路並按「重試」，或改選裝置字體後輸出。`);
+      record ||= webFontRecords.get(key);
+      if (record) {
+        record.status = 'error';
+        record.errorMessage = error.message || '未知錯誤';
+      }
+      throw error;
     }
   }));
 }
@@ -1673,7 +1698,11 @@ async function refreshWebFontStatus() {
   } catch {
     if (generation !== webFontStatusGeneration) return;
     note.classList.add('warning');
-    note.textContent = '部分線上字體載入失敗，預覽暫用備援字體；請重試或改選裝置字體。未就緒前會暫停圖片輸出，避免成品字形不符。';
+    const details = keys.map((key) => {
+      const record = webFontRecords.get(key);
+      return record?.status === 'error' ? `${WEB_FONTS[key].label}：${record.errorMessage}` : null;
+    }).filter(Boolean).join('；');
+    note.textContent = `線上字體載入失敗（${details || '瀏覽器未回報原因'}）。預覽暫用備援字體；請重試或改選裝置字體。未就緒前會暫停圖片輸出。`;
     retry.hidden = false;
   }
 }
@@ -2633,7 +2662,7 @@ function createThumbnail(canvas) {
 
 function loadCaptureStyles() {
   if (!captureStylesPromise) {
-    captureStylesPromise = fetch('./capture-styles.css?v=141')
+    captureStylesPromise = fetch('./capture-styles.css?v=142')
       .then((response) => {
         if (!response.ok) throw new Error(`無法載入輸出排版（HTTP ${response.status}）。`);
         return response.text();
